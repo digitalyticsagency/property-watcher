@@ -137,7 +137,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <header class="site">
   <div class="wrap">
     <h1>NSW Property Watcher</h1>
-    <p class="meta">Last refreshed {generated_human} · {generated_iso}</p>
+    <p class="meta"><a href="search.html">Quick search →</a> · Last refreshed {generated_human} · {generated_iso}</p>
     <nav class="profiles" role="tablist" aria-label="Buyer profile">{profile_buttons}</nav>
   </div>
 </header>

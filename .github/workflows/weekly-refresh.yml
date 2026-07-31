@@ -9,8 +9,10 @@ on:
   # That one-hour drift is harmless for a weekly property digest; if you ever
   # need an exact 6am year-round, add a second cron at 19:00 and gate the job on
   # the Sydney local hour.
-  schedule:
-    - cron: "0 20 * * 6"
+  # Weekly cron disabled — this is now run on demand only.
+  # Re-enable by uncommenting; the DST note above still applies.
+  # schedule:
+  #   - cron: "0 20 * * 6"
   workflow_dispatch:
 
 permissions:
@@ -78,6 +80,9 @@ jobs:
 
       - name: Build dashboard
         run: python src/build_dashboard.py
+
+      - name: Build quick-search links
+        run: python src/build_quick_search.py
 
       - name: Verify the dashboard was actually produced
         run: |
