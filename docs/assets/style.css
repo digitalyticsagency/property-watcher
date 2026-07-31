@@ -257,3 +257,7 @@ footer.site {
 .haz.warn { color: var(--warn); }
 .haz.good { color: var(--accent); }
 .haz.unk { color: var(--ink-faint); }
+.region .drive { font-size: .8rem; font-variant-numeric: tabular-nums; min-width: 132px; }
+.region .drive.ok { color: var(--ink-faint); }
+.region .drive.over { color: var(--warn); font-weight: 600; }
+.region .drive.unk { color: var(--ink-faint); font-style: italic; }

@@ -17,7 +17,8 @@ import sys
 from datetime import datetime, timezone
 from urllib.parse import quote
 
-from common import DOCS_DIR, PipelineError, load_config, log, profile_config
+from common import DOCS_DIR, PipelineError, load_config, log, profile_config, read_json, write_json
+from geocode_distance import GEOCODE_CACHE, ROUTE_CACHE, drive_hours, geocode
 
 
 def esc(v: object) -> str:
@@ -28,28 +29,42 @@ def slug(region: str) -> str:
     return quote(region.lower().replace(" ", "-"))
 
 
-def portal_links(region: str, profile: str, p: dict) -> list[tuple[str, str]]:
-    """Deep links that land on a filtered result list, not a blank search form.
+def portal_links(region: str, profile: str, p: dict) -> list[tuple[str, str, str]]:
+    """Deep links per portal: (name, url, which filters that link actually applies).
 
-    Deliberately conservative URL shapes. Richer filters (land size, property
-    type) are expressible in each portal's URL grammar, but that grammar is
-    undocumented and changes — and I can't verify it automatically, because both
-    portals return 403/429 to any non-browser request. A link that lands on the
-    right suburb with the right price cap and needs one extra click is strictly
-    better than a clever link that 404s. An allhomes.com.au pattern was dropped
-    for exactly that reason: it was verified returning HTTP 404.
+    The two portals get different treatment on purpose.
+
+    Domain documents its query-string filters (price, landsize + landsizeunit,
+    ptype, excludeunderoffer), so the full criteria go in and the link lands on a
+    correctly filtered list.
+
+    realestate.com.au uses a path-slug grammar that is undocumented, and it can
+    be verified from neither curl (429) nor a browser here (blocked by policy).
+    So it gets only the parts of that grammar that are well attested — property
+    type and price band — and no invented land-size segment. Overstating what a
+    link filters is worse than under-filtering, because you would trust a result
+    list that had quietly ignored your land requirement.
     """
     budget = p["budget_max_aud"]
+    land = p["min_land_size_m2"]
+    acreage = profile == "lifestyle_acreage"
+
+    rea_type = "property-acreage+semi-rural" if acreage else "property-house"
+    rea = (
+        f"https://www.realestate.com.au/buy/{rea_type}-between-0-{budget}"
+        f"-in-{slug(region)},+nsw/list-1"
+    )
+
+    dom_type = "acreage-semi-rural,rural" if acreage else "house,duplex,semi-detached"
+    dom = (
+        f"https://www.domain.com.au/sale/{slug(region)}-nsw/"
+        f"?price=0-{budget}&landsize={land}-any&landsizeunit=m2"
+        f"&ptype={dom_type}&excludeunderoffer=1"
+    )
+
     return [
-        (
-            "realestate.com.au",
-            f"https://www.realestate.com.au/buy/in-{slug(region)},+nsw/list-1"
-            f"?maxPrice={budget}",
-        ),
-        (
-            "domain.com.au",
-            f"https://www.domain.com.au/sale/{slug(region)}-nsw/?price=0-{budget}",
-        ),
+        ("realestate.com.au", rea, "price + type"),
+        ("domain.com.au", dom, "price + type + land size"),
     ]
 
 
@@ -74,6 +89,27 @@ h2{font-size:1.15rem;margin:34px 0 4px}
 """
 
 
+def region_drive_hours(region: str, cfg: dict) -> tuple[float | None, str]:
+    """Drive time from Sydney CBD to the region centroid.
+
+    No portal can filter on drive time, so it is resolved here instead and shown
+    per region. That turns the third criterion from decoration into something
+    that actually tells you which regions clear your limit.
+    """
+    geo_cache = read_json(GEOCODE_CACHE, {})
+    route_cache = read_json(ROUTE_CACHE, {})
+    origin = tuple((cfg.get("geocoding") or {}).get("sydney_cbd", [-33.8688, 151.2093]))
+
+    coords = geocode(region, cfg, geo_cache)
+    write_json(GEOCODE_CACHE, geo_cache)
+    if not coords:
+        return None, "unknown"
+
+    hours, source = drive_hours(origin, coords, cfg, route_cache)
+    write_json(ROUTE_CACHE, route_cache)
+    return round(hours, 1), source
+
+
 def build() -> str:
     cfg = load_config()
     now = datetime.now(timezone.utc)
@@ -81,18 +117,31 @@ def build() -> str:
 
     for key in cfg["profiles"]:
         p = profile_config(cfg, key)
+        limit = float(p["max_drive_hours_from_sydney_cbd"])
         rows = []
         for region in p.get("target_regions", []):
             links = "".join(
-                f'<a href="{esc(u)}" target="_blank" rel="noopener noreferrer">{esc(n)}</a>'
-                for n, u in portal_links(region, key, p)
+                f'<a href="{esc(u)}" target="_blank" rel="noopener noreferrer" '
+                f'title="Applies: {esc(f)}">{esc(n)}</a>'
+                for n, u, f in portal_links(region, key, p)
             )
+            hours, source = region_drive_hours(region, cfg)
+            if hours is None:
+                drive = '<span class="drive unk">drive time unknown</span>'
+            else:
+                over = hours > limit
+                approx = " approx." if source == "estimated" else ""
+                drive = (
+                    f'<span class="drive {"over" if over else "ok"}">{hours} h to centre'
+                    f'{approx}{" — over limit" if over else ""}</span>'
+                )
             rows.append(
-                f'<div class="region"><span class="name">{esc(region)}</span>{links}</div>'
+                f'<div class="region"><span class="name">{esc(region)}</span>'
+                f"{drive}{links}</div>"
             )
         crit = (
             f"Up to ${p['budget_max_aud']:,} · land from {p['min_land_size_m2']:,} m² · "
-            f"within {p['max_drive_hours_from_sydney_cbd']} h of Sydney CBD"
+            f"within {limit} h of Sydney CBD"
         )
         sections.append(
             f"<h2>{esc(p.get('label', key))}</h2>"
@@ -109,12 +158,14 @@ def build() -> str:
 <p class="meta">Generated {now.strftime('%d %b %Y')} from config.yaml · every link opens
 that portal already filtered to the criteria below</p>
 <p class="nav"><a href="index.html">← back to the dashboard</a></p>
-<div class="note"><strong>No setup, no keys, no waiting.</strong> Each link opens a live,
-pre-filtered result list on that portal, scoped to the suburb and your price cap.
-Bookmark this page and click through whenever you want to look. Land size and property
-type are <em>not</em> pre-applied — the portals' URL formats for those are undocumented
-and break easily, so set them once in the portal's own filter panel and it will
-remember them for that session.</div>
+<div class="note"><strong>No setup, no keys, no waiting.</strong> Every link carries your
+price cap and property type. <strong>Domain links also apply your land-size minimum</strong>;
+realestate.com.au's land-size URL format is undocumented and could not be verified, so set
+that one filter in their panel once and it sticks for the session. Hover a link to see exactly
+which filters it applies. Neither portal can filter on drive time, so it is measured here per
+region and flagged when a region is outside your limit. Those times are to the
+<em>centre</em> of each region, so a large LGA can read as over the limit while its near
+edge is well inside it — treat a flag as "check where in this region", not "rule it out".</div>
 {''.join(sections)}
 </div></body></html>
 """
