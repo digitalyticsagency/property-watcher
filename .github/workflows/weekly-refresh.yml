@@ -36,8 +36,12 @@ jobs:
       GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
       GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
       GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-      GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
-      GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
+      # Left of the colon is what the Python reads; right is the secret name as
+      # stored in this repo. They differ because the secrets were added under
+      # shorter names, and GitHub has no rename — mapping here avoids re-pasting
+      # the values.
+      GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API }}
+      GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.SEARCH_ENGINE_ID }}
       DOMAIN_API_KEY: ${{ secrets.DOMAIN_API_KEY }}
 
     steps:
