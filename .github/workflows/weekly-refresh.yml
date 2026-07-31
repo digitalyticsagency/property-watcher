@@ -1,0 +1,93 @@
+name: Weekly refresh
+
+on:
+  # GitHub Actions cron is UTC-only and does not follow daylight saving.
+  #
+  # DST wrinkle: Sydney is UTC+10 (AEST) in winter and UTC+11 (AEDT) from the
+  # first Sunday in October to the first Sunday in April. 20:00 UTC Saturday is
+  # therefore 06:00 Sunday AEST in winter and 07:00 Sunday AEDT in summer.
+  # That one-hour drift is harmless for a weekly property digest; if you ever
+  # need an exact 6am year-round, add a second cron at 19:00 and gate the job on
+  # the Sydney local hour.
+  schedule:
+    - cron: "0 20 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: property-watcher-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Fail the whole job on the first failing step — never publish a stale or
+    # half-built dashboard (constraint #10).
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+
+    env:
+      PYTHONPATH: src
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+      GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+      GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+      GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
+      GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
+      DOMAIN_API_KEY: ${{ secrets.DOMAIN_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate config
+        run: python -c "import sys; sys.path.insert(0,'src'); import common; common.load_config(); print('config OK')"
+
+      - name: Fetch — Path A (saved-search email alerts)
+        run: python src/fetch_email_alerts.py
+
+      - name: Fetch — Path C (search API discovery)
+        run: python src/fetch_search_api.py
+
+      - name: Fetch — Path B (Domain API, optional)
+        run: python src/fetch_domain_api.py
+
+      - name: Merge, geocode and apply drive-time filter
+        run: python src/geocode_distance.py
+
+      - name: Granny-flat zoning check
+        run: python src/zoning_check.py
+
+      - name: Rank, score and write commentary
+        run: python src/rank_and_filter.py
+
+      - name: Build dashboard
+        run: python src/build_dashboard.py
+
+      - name: Verify the dashboard was actually produced
+        run: |
+          test -s docs/index.html || { echo "docs/index.html missing or empty"; exit 1; }
+          grep -q '"profiles"' docs/index.html || { echo "dashboard has no profile data"; exit 1; }
+
+      - name: Commit refreshed data and dashboard
+        run: |
+          git config user.name  "property-watcher[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs data
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: weekly property refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>NSW Property Watcher</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <h1>NSW Property Watcher</h1>
+    <p class="meta">Last refreshed 31 Jul 2026, 13:34 UTC · 2026-07-31T13:34:59+00:00</p>
+    <nav class="profiles" role="tablist" aria-label="Buyer profile"><button role="tab" data-profile="lifestyle_acreage" aria-selected="true">Lifestyle acreage</button><button role="tab" data-profile="house_with_granny_flat" aria-selected="false">House with granny flat</button></nav>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+
+<footer class="site wrap">
+  <p>Listings reached via saved-search email alerts, the Google Custom Search JSON API,
+  and (where enabled) the Domain Developer API. Cards marked
+  <span class="badge warn">UNVERIFIED</span> come from a search-result snippet only —
+  the listing page could not be read, so open the link before trusting any detail.
+  Granny-flat assessments are automated reasoning against NSW secondary dwelling
+  rules, not planning advice; confirm with the relevant council.</p>
+</footer>
+
+<script id="data" type="application/json">{"generated_at": "2026-07-31T13:34:59+00:00", "profiles": [{"key": "lifestyle_acreage", "label": "Lifestyle acreage", "criteria": {"regions": ["placeholder"], "budget_max": 1, "budget_min": 0, "min_land": 4000, "max_drive": 4}, "commentary": {"weekly_summary": "No run has completed yet. Trigger the workflow manually from the Actions tab to populate this dashboard.", "top_pick_ids": [], "tab_intros": {"all_matches": "This dashboard has not been populated yet — run the weekly refresh workflow.", "archive": "This dashboard has not been populated yet — run the weekly refresh workflow.", "by_score": "This dashboard has not been populated yet — run the weekly refresh workflow.", "overview": "This dashboard has not been populated yet — run the weekly refresh workflow.", "tags": "This dashboard has not been populated yet — run the weekly refresh workflow."}}, "current": [], "archive": [], "stats": {"total": 0, "new": 0, "verified": 0, "unverified": 0, "archive": 0}}, {"key": "house_with_granny_flat", "label": "House with granny flat", "criteria": {"regions": ["placeholder"], "budget_max": 950000, "budget_min": 0, "min_land": 600, "max_drive": 1.5}, "commentary": {"weekly_summary": "No run has completed yet. Trigger the workflow manually from the Actions tab to populate this dashboard.", "top_pick_ids": [], "tab_intros": {"all_matches": "This dashboard has not been populated yet — run the weekly refresh workflow.", "archive": "This dashboard has not been populated yet — run the weekly refresh workflow.", "by_score": "This dashboard has not been populated yet — run the weekly refresh workflow.", "overview": "This dashboard has not been populated yet — run the weekly refresh workflow.", "tags": "This dashboard has not been populated yet — run the weekly refresh workflow."}}, "current": [], "archive": [], "stats": {"total": 0, "new": 0, "verified": 0, "unverified": 0, "archive": 0}}]}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const TABS = [["overview", "Overview"], ["all_matches", "All current matches"], ["by_score", "By fit score"], ["tags", "Tag filters"], ["archive", "Archive"]];
+let activeProfile = DATA.profiles[0].key;
+let activeTab = 'overview';
+let filters = { region: '', source: '', tag: '' };
+
+const profileOf = key => DATA.profiles.find(p => p.key === key);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function scoreClass(score) {
+  if (score === null || score === undefined) return 'none';
+  if (score >= 8) return 'high';
+  if (score >= 5) return 'mid';
+  return 'low';
+}
+
+function facts(item) {
+  const bits = [];
+  if (item.price_text) bits.push(esc(item.price_text));
+  else if (item.price_aud) bits.push('$' + item.price_aud.toLocaleString('en-AU'));
+  if (item.land_size_m2) bits.push(item.land_size_m2.toLocaleString('en-AU') + ' m²');
+  if (item.bedrooms) bits.push(item.bedrooms + ' bed');
+  if (item.bathrooms) bits.push(item.bathrooms + ' bath');
+  if (item.drive_hours !== null && item.drive_hours !== undefined) {
+    const suffix = item.distance_source === 'estimated' ? ' (est.)' : '';
+    bits.push(item.drive_hours.toFixed(1) + ' h from Sydney' + suffix);
+  }
+  return bits.map(b => `<span>${b}</span>`).join('');
+}
+
+function badges(item) {
+  const out = [];
+  if (item.is_new) out.push('<span class="badge new">NEW THIS WEEK</span>');
+  if (!item.verified) {
+    const why = item.unverified_reason ? ' — ' + esc(item.unverified_reason) : '';
+    out.push(`<span class="badge warn" title="Open the link to confirm${why}">⚠ UNVERIFIED — open link to confirm</span>`);
+  }
+  out.push(`<span class="badge">via ${item.source === 'email_alert' ? 'email alert'
+    : item.source === 'search_api' ? 'web search' : 'Domain API'}</span>`);
+  if (item.granny_flat_status) {
+    const kind = item.granny_flat_status.startsWith('confirmed') ? 'gf-confirmed'
+      : item.granny_flat_status.startsWith('likely') ? 'gf-likely' : 'gf-unclear';
+    out.push(`<span class="badge ${kind}">granny flat: ${esc(item.granny_flat_status)}</span>`);
+  }
+  // granny-flat:* is kept in tags so the Tag filters tab can select on it, but
+  // it already has a dedicated badge above — don't render it twice.
+  (item.tags || [])
+    .filter(t => !t.startsWith('granny-flat:'))
+    .forEach(t => out.push(`<span class="badge">${esc(t)}</span>`));
+  return out.join('');
+}
+
+function card(item) {
+  const score = item.score === null || item.score === undefined
+    ? '<div class="score none">n/a</div>'
+    : `<div class="score ${scoreClass(item.score)}">${item.score}</div>`;
+  const zoning = item.granny_flat_reasoning
+    ? `<p class="zoning"><strong>Zoning reasoning:</strong> ${esc(item.granny_flat_reasoning)}</p>` : '';
+  return `<article class="card ${item.verified ? '' : 'is-unverified'}">
+    <div>
+      <h3><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a></h3>
+      <p class="facts">${facts(item)}</p>
+      <p class="reason">${esc(item.score_reason || '')}</p>
+      ${zoning}
+    </div>
+    ${score}
+    <div class="badges">${badges(item)}</div>
+  </article>`;
+}
+
+function cards(items, emptyMsg) {
+  if (!items.length) return `<div class="empty">${esc(emptyMsg)}</div>`;
+  return `<div class="cards">${items.map(card).join('')}</div>`;
+}
+
+function applyFilters(items) {
+  return items.filter(i =>
+    (!filters.region || (i.region || '').toLowerCase().includes(filters.region.toLowerCase())) &&
+    (!filters.source || i.source === filters.source) &&
+    (!filters.tag || (i.tags || []).includes(filters.tag)));
+}
+
+function filterBar(items, opts) {
+  const regions = [...new Set(items.map(i => i.region).filter(Boolean))].sort();
+  const tags = [...new Set(items.flatMap(i => i.tags || []))].sort();
+  const parts = [];
+  if (opts.region) parts.push(`<label>Region
+    <select data-filter="region"><option value="">All</option>
+    ${regions.map(r => `<option ${filters.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+    </select></label>`);
+  if (opts.source) parts.push(`<label>Source
+    <select data-filter="source"><option value="">All</option>
+      <option value="email_alert" ${filters.source === 'email_alert' ? 'selected' : ''}>Email alert</option>
+      <option value="search_api" ${filters.source === 'search_api' ? 'selected' : ''}>Web search (unverified)</option>
+      <option value="domain_api" ${filters.source === 'domain_api' ? 'selected' : ''}>Domain API</option>
+    </select></label>`);
+  if (opts.tag) parts.push(`<label>Tag
+    <select data-filter="tag"><option value="">All</option>
+    ${tags.map(t => `<option ${filters.tag === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+    </select></label>`);
+  return parts.length ? `<div class="filters">${parts.join('')}</div>` : '';
+}
+
+function render() {
+  const p = profileOf(activeProfile);
+  const intro = esc((p.commentary.tab_intros || {})[activeTab] || '');
+  const tabStrip = TABS.map(([key, label]) => {
+    const n = key === 'archive' ? p.archive.length : (key === 'overview' ? null : p.current.length);
+    return `<button role="tab" data-tab="${key}" aria-selected="${key === activeTab}">
+      ${label}${n === null ? '' : ` <span class="count">${n}</span>`}</button>`;
+  }).join('');
+
+  let body = '';
+  if (activeTab === 'overview') {
+    const picks = p.commentary.top_pick_ids
+      .map(id => p.current.find(c => c.id === id)).filter(Boolean);
+    body = `
+      <div class="stats">
+        <div class="stat"><div class="n">${p.stats.new}</div><div class="k">New this week</div></div>
+        <div class="stat"><div class="n">${p.stats.total}</div><div class="k">Current matches</div></div>
+        <div class="stat"><div class="n">${p.stats.verified}</div><div class="k">Verified</div></div>
+        <div class="stat"><div class="n">${p.stats.unverified}</div><div class="k">Unverified</div></div>
+        <div class="stat"><div class="n">${p.stats.archive}</div><div class="k">In archive</div></div>
+      </div>
+      <h2>What changed this week</h2>
+      <p>${esc(p.commentary.weekly_summary)}</p>
+      <h2>Top ${picks.length} picks</h2>
+      ${cards(picks, 'No standout picks this week.')}`;
+  } else if (activeTab === 'all_matches') {
+    const items = applyFilters(p.current);
+    body = filterBar(p.current, {region: true, source: true, tag: false})
+      + cards(items, 'No listings match these filters.');
+  } else if (activeTab === 'by_score') {
+    const items = [...p.current].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    body = cards(items, 'Nothing scored yet.');
+  } else if (activeTab === 'tags') {
+    const items = applyFilters(p.current);
+    body = filterBar(p.current, {region: false, source: true, tag: true})
+      + cards(items, 'No listings carry that tag.');
+  } else {
+    body = cards(p.archive, 'The archive is empty — nothing has dropped off the current list yet.');
+  }
+
+  document.getElementById('app').innerHTML =
+    `<nav class="tabs" role="tablist">${tabStrip}</nav>`
+    + (intro ? `<p class="intro">${intro}</p>` : '')
+    + body;
+
+  document.querySelectorAll('.profiles button').forEach(b =>
+    b.setAttribute('aria-selected', b.dataset.profile === activeProfile));
+}
+
+document.addEventListener('click', e => {
+  const profileBtn = e.target.closest('.profiles button');
+  if (profileBtn) {
+    activeProfile = profileBtn.dataset.profile;
+    activeTab = 'overview';
+    filters = { region: '', source: '', tag: '' };
+    render();
+    return;
+  }
+  const tabBtn = e.target.closest('.tabs button');
+  if (tabBtn) {
+    activeTab = tabBtn.dataset.tab;
+    render();
+  }
+});
+
+document.addEventListener('change', e => {
+  const sel = e.target.closest('[data-filter]');
+  if (sel) {
+    filters[sel.dataset.filter] = sel.value;
+    render();
+  }
+});
+
+render();
+</script>
+</body>
+</html>

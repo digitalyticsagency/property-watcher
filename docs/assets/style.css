@@ -1,0 +1,222 @@
+/* NSW Property Watcher — dashboard styles.
+   Static file, committed to the repo; build_dashboard.py only generates index.html. */
+
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --border: #e2ded7;
+  --ink: #1c1a17;
+  --ink-soft: #5f5a53;
+  --ink-faint: #8b857c;
+  --accent: #2f5d50;
+  --accent-soft: #e8f0ed;
+  --warn: #9a5b16;
+  --warn-soft: #fdf1e2;
+  --danger: #8f2f2f;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(28, 26, 23, 0.06), 0 4px 12px rgba(28, 26, 23, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181a;
+    --surface: #1e2124;
+    --border: #32363b;
+    --ink: #e9e6e1;
+    --ink-soft: #a9a49c;
+    --ink-faint: #7d7871;
+    --accent: #7fb8a4;
+    --accent-soft: #22322d;
+    --warn: #d69a5a;
+    --warn-soft: #33281a;
+    --danger: #d98a8a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px 72px; }
+
+header.site {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 28px 0 0;
+}
+header.site .wrap { padding-bottom: 0; }
+header.site h1 { margin: 0 0 4px; font-size: 1.5rem; letter-spacing: -0.01em; }
+header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 20px; }
+
+/* profile switcher */
+.profiles { display: flex; gap: 8px; }
+.profiles button {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 11px 18px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  cursor: pointer;
+}
+.profiles button[aria-selected="true"] {
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+/* tab strip */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 24px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 9px 13px;
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs .count { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+.intro {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 12px 16px;
+  margin-bottom: 22px;
+  font-size: 0.94rem;
+  color: var(--ink-soft);
+}
+
+/* stats */
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  min-width: 120px;
+  box-shadow: var(--shadow);
+}
+.stat .n { font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 0.78rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* filters */
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+.filters select, .filters input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.filters label { font-size: 0.82rem; color: var(--ink-faint); }
+
+/* cards */
+.cards { display: grid; gap: 14px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 18px;
+}
+.card.is-unverified { border-left: 4px solid var(--warn); }
+.card h3 { margin: 0 0 6px; font-size: 1.03rem; line-height: 1.35; }
+.card h3 a { color: inherit; text-decoration: none; }
+.card h3 a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
+.card .facts { color: var(--ink-soft); font-size: 0.88rem; margin: 0 0 8px; }
+.card .facts span:not(:last-child)::after { content: " · "; color: var(--ink-faint); }
+.card .reason { margin: 0; font-size: 0.92rem; color: var(--ink-soft); }
+.card .zoning {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.score {
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+.score.mid { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+.score.low { background: transparent; color: var(--ink-faint); border-color: var(--border); }
+.score.none { font-size: 0.8rem; }
+
+.badges { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+  background: var(--bg);
+}
+.badge.warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.badge.new { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.badge.gf-confirmed { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.badge.gf-likely { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.badge.gf-unclear { border-style: dashed; }
+
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+footer.site {
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+  padding-top: 20px;
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 620px) {
+  .card { grid-template-columns: 1fr; }
+  .score { justify-self: start; }
+  .profiles { flex-direction: column; gap: 0; }
+  .profiles button { border-radius: var(--radius); border-bottom: 1px solid var(--border); }
+}

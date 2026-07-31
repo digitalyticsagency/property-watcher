@@ -1,0 +1,15 @@
+# Never commit credentials. All secrets live in GitHub encrypted secrets.
+client_secret*.json
+token.json
+*.pem
+.env
+.env.*
+
+# Intermediate pipeline stages — regenerated every run, not worth versioning.
+data/_work/
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store

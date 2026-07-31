@@ -1,0 +1,99 @@
+# NSW Property Watcher — configuration
+#
+# ⚠️  FILL IN EVERY `FILL_ME` / `0` BELOW BEFORE THE FIRST RUN.
+#     src/common.py validates this file and exits non-zero if placeholders remain,
+#     so the workflow fails loudly rather than publishing a dashboard built on guesses.
+
+profiles:
+  lifestyle_acreage:
+    label: "Lifestyle acreage"
+    # e.g. ["Southern Highlands", "Hunter Valley", "Blue Mountains", "Shoalhaven"]
+    target_regions: ["FILL_ME", "FILL_ME"]
+    max_drive_hours_from_sydney_cbd: 4
+    min_land_size_m2: 4000
+    budget_min_aud: 0
+    budget_max_aud: 0          # <-- FILL: must be > 0
+    must_haves:
+      - "flat or gently sloped usable land (not 100% steep/bushland)"
+      - "existing house OR feasible to build (zoning: R5, RU1, RU2, RU4, RU5)"
+      - "room for vegetable garden, small chicken run, open play field, workshop/meditation studio"
+    nice_to_haves:
+      - "granny flat already on site, or secondary dwelling permitted under zoning"
+      - "town water or reliable bore/tank"
+      - "flag (don't auto-reject) high bushfire attack level (BAL-40/FZ) zones"
+    # Extra keyword seeds for the search-API query builder (optional).
+    query_keywords: ["acreage", "lifestyle property", "rural residential", "hobby farm"]
+
+  house_with_granny_flat:
+    label: "House with granny flat"
+    # e.g. ["Wilton", "Camden", "Penrith", "Campbelltown"]
+    target_regions: ["FILL_ME", "FILL_ME"]
+    max_drive_hours_from_sydney_cbd: 1.5
+    min_land_size_m2: 600
+    budget_min_aud: 0
+    budget_max_aud: 950000
+    must_haves:
+      - "existing granny flat / secondary dwelling on title, OR clear potential
+         under current zoning (check LEP for the specific lot, not just suburb)"
+      - "main house condition suitable to live in without major works"
+    nice_to_haves:
+      - "granny flat already tenanted or rentable, for income potential"
+      - "separate access/driveway for the granny flat"
+    query_keywords: ["granny flat", "secondary dwelling", "dual occupancy", "dual living"]
+
+data_sources:
+  - path_a_email_alerts
+  - path_c_search_api
+  # - path_b_domain_api      # optional: uncomment if you obtain a Domain API key
+
+# --- Path A: Gmail saved-search alerts -------------------------------------
+gmail:
+  # Gmail labels you route each portal's saved-search alert emails into.
+  # Create these in Gmail with filters BEFORE the first run.
+  labels:
+    lifestyle_acreage: "property/lifestyle-acreage"
+    house_with_granny_flat: "property/granny-flat"
+  # Only look at alert emails newer than this many days (weekly run => 8 for overlap).
+  lookback_days: 8
+
+# --- Path C: Google Custom Search JSON API ---------------------------------
+search_api:
+  provider: google_cse            # google_cse (chosen) — bing adapter also present
+  # Sites the Programmable Search Engine is allowed to return. Deliberately wider
+  # than the two big portals, per the brief.
+  sites:
+    - realestate.com.au
+    - domain.com.au
+    - allhomes.com.au
+    - ratemyagent.com.au
+    - onthehouse.com.au
+    - property.com.au
+    - realestateview.com.au
+    - homely.com.au
+  results_per_query: 10           # Google CSE max is 10 per request
+  max_queries_per_profile: 8      # free tier is 100 queries/day — stay well under
+  # Politeness for the optional listing-page fetch (Path C step 2).
+  fetch:
+    enabled: true
+    timeout_seconds: 15
+    delay_seconds: 2.0            # between fetches, on top of robots.txt checks
+    user_agent: "nsw-property-watcher/1.0 (+https://github.com/USER/property-watcher)"
+
+# --- Distance filtering ----------------------------------------------------
+geocoding:
+  sydney_cbd: [-33.8688, 151.2093]
+  nominatim_user_agent: "nsw-property-watcher/1.0 (contact: FILL_ME@example.com)"
+  # Fallback when the routing service can't answer: straight-line km / this speed.
+  fallback_avg_speed_kmh: 70
+  # Straight-line distance is shorter than road distance; inflate before dividing.
+  fallback_road_factor: 1.35
+
+# --- AI ranking ------------------------------------------------------------
+anthropic:
+  model: claude-opus-5
+  effort: medium                  # low | medium | high | xhigh | max
+  batch_size: 12                  # listings per scoring request
+  max_tokens: 16000
+
+refresh_schedule: "weekly, Sunday 6am AEST"
+hosting: github_actions_plus_pages
