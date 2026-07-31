@@ -100,8 +100,7 @@ header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 
 
 .intro {
   background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: var(--radius);
   padding: 12px 16px;
   margin-bottom: 22px;
   font-size: 0.94rem;
@@ -146,7 +145,15 @@ header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 
   grid-template-columns: 1fr auto;
   gap: 10px 18px;
 }
-.card.is-unverified { border-left: 4px solid var(--warn); }
+/* Unverified = search snippet only, listing page never read. This must be
+   unmistakable at a glance, so the whole card is tinted rather than tagged with
+   a side rule — the tint reads across a long scrolling list, where a 4px edge
+   marker disappears. Paired with the caution badge in the badge row. */
+.card.is-unverified {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+}
+.card.is-unverified .zoning { background: var(--surface); }
 .card h3 { margin: 0 0 6px; font-size: 1.03rem; line-height: 1.35; }
 .card h3 a { color: inherit; text-decoration: none; }
 .card h3 a:hover { text-decoration: underline; text-decoration-color: var(--accent); }
