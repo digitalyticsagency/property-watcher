@@ -8,11 +8,11 @@ profiles:
   lifestyle_acreage:
     label: "Lifestyle acreage"
     # e.g. ["Southern Highlands", "Hunter Valley", "Blue Mountains", "Shoalhaven"]
-    target_regions: ["FILL_ME", "FILL_ME"]
+    target_regions: ["Shoalhaven", "Blue Mountains", "Southern Highlands", "Hunter Valley", "Hills District"]
     max_drive_hours_from_sydney_cbd: 4
     min_land_size_m2: 4000
     budget_min_aud: 0
-    budget_max_aud: 0          # <-- FILL: must be > 0
+    budget_max_aud: 1400000
     must_haves:
       - "flat or gently sloped usable land (not 100% steep/bushland)"
       - "existing house OR feasible to build (zoning: R5, RU1, RU2, RU4, RU5)"
@@ -27,7 +27,7 @@ profiles:
   house_with_granny_flat:
     label: "House with granny flat"
     # e.g. ["Wilton", "Camden", "Penrith", "Campbelltown"]
-    target_regions: ["FILL_ME", "FILL_ME"]
+    target_regions: ["Wilton", "Campbelltown", "Picton", "Penrith", "Blacktown", "Tahmoor"]
     max_drive_hours_from_sydney_cbd: 1.5
     min_land_size_m2: 600
     budget_min_aud: 0
@@ -71,18 +71,20 @@ search_api:
     - realestateview.com.au
     - homely.com.au
   results_per_query: 10           # Google CSE max is 10 per request
-  max_queries_per_profile: 8      # free tier is 100 queries/day — stay well under
+  # Free tier is 100 queries/day. With 5 + 6 regions a weekly run uses at most
+  # 48, so every region gets several queries and we still stay well under.
+  max_queries_per_profile: 24
   # Politeness for the optional listing-page fetch (Path C step 2).
   fetch:
     enabled: true
     timeout_seconds: 15
     delay_seconds: 2.0            # between fetches, on top of robots.txt checks
-    user_agent: "nsw-property-watcher/1.0 (+https://github.com/USER/property-watcher)"
+    user_agent: "nsw-property-watcher/1.0 (+https://github.com/digitalyticsagency/property-watcher)"
 
 # --- Distance filtering ----------------------------------------------------
 geocoding:
   sydney_cbd: [-33.8688, 151.2093]
-  nominatim_user_agent: "nsw-property-watcher/1.0 (contact: FILL_ME@example.com)"
+  nominatim_user_agent: "nsw-property-watcher/1.0 (contact: digitalyticsagency@gmail.com)"
   # Fallback when the routing service can't answer: straight-line km / this speed.
   fallback_avg_speed_kmh: 70
   # Straight-line distance is shorter than road distance; inflate before dividing.

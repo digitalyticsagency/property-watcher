@@ -50,11 +50,17 @@ _robots_cache: dict[str, urllib.robotparser.RobotFileParser | None] = {}
 
 
 def build_queries(cfg: dict[str, Any], profile: str) -> list[str]:
-    """One query per (region x keyword-theme), capped by config.
+    """One query per (region x keyword-theme), round-robined across regions.
 
     Google CSE has no OR-of-sites operator that behaves well, so site scoping is
     configured on the Programmable Search Engine itself (see README) and the
     queries stay natural-language.
+
+    Ordering matters because the list gets capped for the free tier. Building
+    region-major (all of region 1, then all of region 2, ...) and then truncating
+    would silently search only the first regions and never touch the rest. So we
+    interleave: every region gets its first query before any region gets a
+    second. A cap then costs each region depth, not existence.
     """
     p = profile_config(cfg, profile)
     search_cfg = cfg.get("search_api") or {}
@@ -62,26 +68,35 @@ def build_queries(cfg: dict[str, Any], profile: str) -> list[str]:
     keywords = p.get("query_keywords") or []
     budget_max = p.get("budget_max_aud")
 
-    queries: list[str] = []
+    # Per-region query list, most valuable query first.
+    per_region: list[list[str]] = []
     for region in regions:
-        for keyword in keywords or [""]:
-            terms = [keyword, region, "NSW", "for sale"]
-            queries.append(" ".join(t for t in terms if t).strip())
         if profile == "lifestyle_acreage":
-            queries.append(f"acreage for sale {region} NSW land size hectares")
+            primary = f"acreage for sale {region} NSW land size hectares"
         else:
-            queries.append(f"house with granny flat for sale {region} NSW under {budget_max}")
+            primary = f"house with granny flat for sale {region} NSW under {budget_max}"
+        rest = [
+            " ".join(t for t in (keyword, region, "NSW", "for sale") if t).strip()
+            for keyword in (keywords or [""])
+        ]
+        per_region.append([primary, *rest])
 
-    # Deterministic order, deduped, then capped so we stay inside the free tier.
+    # Round-robin interleave: index 0 of every region, then index 1, and so on.
+    queries: list[str] = []
+    for depth in range(max((len(q) for q in per_region), default=0)):
+        for region_queries in per_region:
+            if depth < len(region_queries):
+                queries.append(region_queries[depth])
+
     seen: set[str] = set()
     unique = [q for q in queries if not (q in seen or seen.add(q))]
     cap = int(search_cfg.get("max_queries_per_profile", 8))
     if len(unique) > cap:
+        covered = len({r for r in regions for q in unique[:cap] if r in q})
         log.info(
-            "[%s] %d queries built, capping to %d (search_api.max_queries_per_profile)",
-            profile,
-            len(unique),
-            cap,
+            "[%s] %d queries built, capping to %d — %d/%d regions still covered "
+            "(raise search_api.max_queries_per_profile for more depth per region)",
+            profile, len(unique), cap, covered, len(regions),
         )
     return unique[:cap]
 
