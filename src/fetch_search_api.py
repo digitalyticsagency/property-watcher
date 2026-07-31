@@ -118,6 +118,17 @@ def search_google_cse(query: str, cfg: dict[str, Any]) -> list[dict[str, str]]:
             "Google Custom Search returned 429 (daily free quota is 100 queries). "
             "Lower search_api.max_queries_per_profile or enable billing."
         )
+    if resp.status_code == 403 and "does not have the access" in resp.text:
+        # Creating an API key and enabling the API are separate steps in Google
+        # Cloud, and the "Get a Key" flow often skips the second — so this 403
+        # means a setup gap, not a bad key.
+        raise PipelineError(
+            "Google Custom Search returned 403: the Custom Search JSON API is not "
+            "enabled on the Cloud project this API key belongs to. Enable it at "
+            "https://console.cloud.google.com/apis/library/customsearch.googleapis.com "
+            "(select the same project the key was created in), wait a minute, then "
+            "re-run. The key itself is fine — this is a per-project API toggle."
+        )
     if resp.status_code >= 400:
         raise PipelineError(
             f"Google Custom Search failed ({resp.status_code}): {resp.text[:300]}"
