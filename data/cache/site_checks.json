@@ -1,0 +1,52 @@
+{
+  "-34.24000,150.68000": {
+    "amenities": {},
+    "bushfire": {
+      "detail": "Proximity still triggers a bush fire assessment in most councils. Confirm on the section 10.7 certificate.",
+      "level": "near",
+      "text": "Category 0/3 bush fire prone land within ~250 m"
+    },
+    "flood": {
+      "detail": "Only 10 NSW councils publish a flood planning layer. Absence here is NOT evidence of safety — the section 10.7 certificate is the authoritative answer.",
+      "level": "unknown",
+      "text": "No state flood mapping for this council"
+    },
+    "min_lot_size": {
+      "status": "unknown",
+      "text": ""
+    },
+    "status": "ok",
+    "zoning": {
+      "code": "UD",
+      "epi": "State Environmental Planning Policy (Precincts—Western Parkland City) 2021",
+      "label": "Urban Development",
+      "lga": "",
+      "status": "ok"
+    }
+  },
+  "-34.55400,150.37200": {
+    "amenities": {},
+    "bushfire": {
+      "detail": "Nothing within ~250 m of this point in the RFS register.",
+      "level": "clear",
+      "text": "Not on mapped bush fire prone land"
+    },
+    "flood": {
+      "detail": "This council publishes flood mapping to the state dataset, so this is a real result.",
+      "level": "clear",
+      "text": "Outside the mapped flood planning area"
+    },
+    "min_lot_size": {
+      "status": "ok",
+      "text": "700-749"
+    },
+    "status": "ok",
+    "zoning": {
+      "code": "R3",
+      "epi": "Wingecarribee Local Environmental Plan 2010",
+      "label": "Medium Density Residential",
+      "lga": "WINGECARRIBEE",
+      "status": "ok"
+    }
+  }
+}

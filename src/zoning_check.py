@@ -40,8 +40,17 @@ from common import (
 SECONDARY_DWELLING_ZONES = {
     "R1", "R2", "R3", "R4", "R5",
     "RU1", "RU2", "RU3", "RU4", "RU5", "RU6",
-    "C4",
-    "E4",  # legacy code, still appears in older listings and some LEPs
+    "C4",  # Environmental Living
+}
+
+# NSW Employment Zones Reform renumbered the E-codes. The OLD E3/E4
+# (Environmental Management / Environmental Living) became C3/C4, and E1-E5 were
+# reissued as commercial and industrial zones. Treating a modern E4 as
+# residential would call a General Industrial lot granny-flat-ready, so the new
+# codes are named explicitly and always rejected.
+REASSIGNED_E_ZONES = {
+    "E1": "Local Centre", "E2": "Commercial Centre", "E3": "Productivity Support",
+    "E4": "General Industrial", "E5": "Heavy Industrial",
 }
 
 MIN_COMPLYING_LOT_M2 = 450
@@ -79,12 +88,20 @@ def _matches(patterns: list[str], text: str) -> str | None:
     return None
 
 
-def detect_zone(listing: Listing) -> str:
+def detect_zone(listing: Listing) -> tuple[str, bool]:
+    """Return (zone_code, is_authoritative).
+
+    Authoritative means it came from the NSW planning register via site_checks,
+    not from a regex over agent marketing copy.
+    """
+    official = ((listing.site or {}).get("zoning") or {}).get("code", "")
+    if official:
+        return official.upper(), True
     if listing.zoning_raw:
         m = _ZONE_RE.search(listing.zoning_raw.upper())
         if m:
-            return m.group(1)
-    return ""
+            return m.group(1), False
+    return "", False
 
 
 def assess(listing: Listing) -> tuple[str, str]:
@@ -92,7 +109,7 @@ def assess(listing: Listing) -> tuple[str, str]:
     text = " ".join(
         filter(None, [listing.title, listing.snippet, listing.address, listing.zoning_raw])
     )
-    zone = detect_zone(listing)
+    zone, authoritative = detect_zone(listing)
     land = listing.land_size_m2
     notes: list[str] = []
 
@@ -119,7 +136,19 @@ def assess(listing: Listing) -> tuple[str, str]:
     if potential:
         notes.append(f"listing claims potential ({potential!r}) — agent copy, not a determination")
 
+    if zone and zone in REASSIGNED_E_ZONES:
+        notes.append(
+            f"zone {zone} is {REASSIGNED_E_ZONES[zone]} under the NSW Employment "
+            "Zones Reform — not a residential zone, and a secondary dwelling is "
+            "not permitted"
+        )
+        return "unclear — check with council", "; ".join(notes)
+
     if zone:
+        source = (
+            "NSW planning register" if authoritative else "listing text (unverified)"
+        )
+        notes.append(f"zone {zone} from {source}")
         if zone in SECONDARY_DWELLING_ZONES:
             notes.append(
                 f"zone {zone} permits a secondary dwelling with consent under "
@@ -161,7 +190,7 @@ def assess(listing: Listing) -> tuple[str, str]:
 
 
 def process_profile(profile: str) -> list[Listing]:
-    listings = read_stage(profile, "geocoded")
+    listings = read_stage(profile, "checked")
 
     if profile != "house_with_granny_flat":
         # The acreage profile treats a granny flat as a nice-to-have, so it is

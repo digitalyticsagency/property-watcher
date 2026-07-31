@@ -165,6 +165,8 @@ class Listing:
     score_reason: str = ""
     tags: list[str] = field(default_factory=list)
     rejected_reason: str = ""
+    # Live NSW government site checks (zoning, bushfire, flood, amenities).
+    site: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @property

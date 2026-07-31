@@ -93,6 +93,14 @@ geocoding:
   # Straight-line distance is shorter than road distance; inflate before dividing.
   fallback_road_factor: 1.35
 
+# --- Site checks: live NSW government data (no API key needed) --------------
+# Zoning + LGA, minimum lot size, bush fire prone land, flood planning area,
+# and nearby amenities. Same free endpoints Parcel Ledger uses.
+site_checks:
+  enabled: true
+  amenity_radius_km: 10
+  delay_seconds: 1.0        # be polite to the state servers and Overpass
+
 # --- AI ranking ------------------------------------------------------------
 anthropic:
   model: claude-opus-5

@@ -66,6 +66,7 @@ def listing_payload(listing: Listing, is_new: bool) -> dict[str, Any]:
         "score": listing.score,
         "score_reason": listing.score_reason,
         "tags": listing.tags,
+        "site": listing.site or {},
         "region": listing.suburb or _region_guess(listing),
         "is_new": is_new,
         "first_seen": listing.first_seen,
@@ -209,18 +210,57 @@ function badges(item) {{
   return out.join('');
 }}
 
+const HAZARD_CLASS = {{on:'bad', near:'warn', clear:'good', unknown:'unk'}};
+
+function siteBlock(item) {{
+  const s = item.site || {{}};
+  if (s.status !== 'ok') return '';
+  const rows = [];
+  const z = s.zoning || {{}};
+  if (z.code) {{
+    rows.push(`<div><span class="k">Zone</span> <strong>${{esc(z.code)}}</strong>
+      ${{esc(z.label || '')}}${{z.lga ? ' · ' + esc(z.lga) : ''}}
+      <span class="src">NSW planning register</span></div>`);
+  }}
+  const lot = s.min_lot_size || {{}};
+  if (lot.text) rows.push(`<div><span class="k">Min lot size</span> ${{esc(lot.text)}}</div>`);
+
+  ['bushfire','flood'].forEach(key => {{
+    const h = s[key]; if (!h || !h.text) return;
+    rows.push(`<div><span class="k">${{key === 'bushfire' ? 'Bush fire' : 'Flood'}}</span>
+      <span class="haz ${{HAZARD_CLASS[h.level] || 'unk'}}">${{esc(h.text)}}</span>
+      ${{h.detail ? `<div class="hint">${{esc(h.detail)}}</div>` : ''}}</div>`);
+  }});
+
+  const am = s.amenities || {{}};
+  const labels = {{school:'Schools',hospital:'Hospitals',pharmacy:'Pharmacies',doctors:'GPs',
+    childcare:'Childcare',fuel:'Fuel',supermarket:'Supermarkets',station:'Train stations',
+    post_office:'Post offices',bank:'Banks'}};
+  const nearest = Object.entries(am)
+    .filter(([k, v]) => v && v.length)
+    .map(([k, v]) => `${{labels[k] || k}}: ${{v[0].km}} km`);
+  if (nearest.length) {{
+    rows.push(`<div><span class="k">Nearest</span> ${{esc(nearest.join(' · '))}}</div>`);
+  }}
+  if (!rows.length) return '';
+  return `<div class="site"><div class="site-h">Site checks — live NSW government data</div>
+    ${{rows.join('')}}</div>`;
+}}
+
 function card(item) {{
   const score = item.score === null || item.score === undefined
     ? '<div class="score none">n/a</div>'
     : `<div class="score ${{scoreClass(item.score)}}">${{item.score}}</div>`;
   const zoning = item.granny_flat_reasoning
     ? `<p class="zoning"><strong>Zoning reasoning:</strong> ${{esc(item.granny_flat_reasoning)}}</p>` : '';
+  const site = siteBlock(item);
   return `<article class="card ${{item.verified ? '' : 'is-unverified'}}">
     <div>
       <h3><a href="${{esc(item.url)}}" target="_blank" rel="noopener noreferrer">${{esc(item.title)}}</a></h3>
       <p class="facts">${{facts(item)}}</p>
       <p class="reason">${{esc(item.score_reason || '')}}</p>
       ${{zoning}}
+      ${{site}}
     </div>
     ${{score}}
     <div class="badges">${{badges(item)}}</div>

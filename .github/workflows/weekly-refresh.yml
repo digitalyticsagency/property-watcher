@@ -72,6 +72,9 @@ jobs:
       - name: Merge, geocode and apply drive-time filter
         run: python src/geocode_distance.py
 
+      - name: Site checks (NSW zoning, bushfire, flood, amenities)
+        run: python src/site_checks.py
+
       - name: Granny-flat zoning check
         run: python src/zoning_check.py
 

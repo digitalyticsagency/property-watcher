@@ -241,3 +241,19 @@ footer.site {
 }
 .outage ul { margin: 8px 0 0; padding-left: 20px; color: var(--ink-soft); }
 .outage li { margin-top: 4px; }
+
+/* Site checks — live NSW government data. Distinct from the AI commentary
+   above it, because this is registry fact rather than model judgement. */
+.site { margin: 10px 0 0; font-size: .85rem; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.site-h { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 6px; }
+.site > div { margin-top: 4px; color: var(--ink-soft); }
+.site .k { display: inline-block; min-width: 96px; color: var(--ink-faint); }
+.site .src { font-size: .72rem; color: var(--ink-faint); }
+.site .hint { margin: 2px 0 0 96px; font-size: .78rem; color: var(--ink-faint); }
+.haz { font-weight: 600; }
+.haz.bad { color: var(--danger); }
+.haz.warn { color: var(--warn); }
+.haz.good { color: var(--accent); }
+.haz.unk { color: var(--ink-faint); }
