@@ -30,6 +30,7 @@ from common import (
     now_iso,
     profile_config,
     require_env,
+    run_source,
     write_stage,
 )
 
@@ -281,10 +282,13 @@ def main() -> int:
             write_stage(profile, "email_alerts", [])
         return 0
 
-    service = gmail_service(cfg)
-    for profile in cfg["profiles"]:
-        write_stage(profile, "email_alerts", fetch_profile(service, cfg, profile))
-    return 0
+    profiles = list(cfg["profiles"])
+    return run_source(
+        "email_alerts",
+        "email_alerts",
+        profiles,
+        lambda p: fetch_profile(gmail_service(cfg), cfg, p),
+    )
 
 
 if __name__ == "__main__":

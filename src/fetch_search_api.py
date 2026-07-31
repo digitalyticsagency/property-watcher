@@ -36,6 +36,7 @@ from common import (
     now_iso,
     profile_config,
     require_env,
+    run_source,
     write_stage,
 )
 
@@ -352,15 +353,16 @@ def fetch_profile(cfg: dict[str, Any], profile: str) -> list[Listing]:
 
 def main() -> int:
     cfg = load_config()
+    profiles = list(cfg["profiles"])
     if "path_c_search_api" not in enabled_sources(cfg):
         log.info("path_c_search_api not in data_sources — writing empty stages")
-        for profile in cfg["profiles"]:
+        for profile in profiles:
             write_stage(profile, "search_api", [])
         return 0
 
-    for profile in cfg["profiles"]:
-        write_stage(profile, "search_api", fetch_profile(cfg, profile))
-    return 0
+    return run_source(
+        "search_api", "search_api", profiles, lambda p: fetch_profile(cfg, p)
+    )
 
 
 if __name__ == "__main__":

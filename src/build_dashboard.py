@@ -142,6 +142,7 @@ PAGE_TEMPLATE = """<!doctype html>
   </div>
 </header>
 
+{source_banner}
 <main class="wrap" id="app"></main>
 
 <footer class="site wrap">
@@ -339,6 +340,37 @@ render();
 """
 
 
+SOURCE_LABELS = {
+    "email_alerts": "Saved-search email alerts",
+    "search_api": "Web search discovery",
+    "domain_api": "Domain API",
+}
+
+
+def source_banner() -> str:
+    """Show any source that failed this run, so an outage is never silent.
+
+    A dashboard that quietly shrinks because one provider broke is worse than a
+    failed run — you'd read the short list as 'nothing matched this week'.
+    """
+    status = read_json(WORK_DIR / "source_status.json", {})
+    failed = {k: v for k, v in status.items() if not v.get("ok")}
+    if not failed:
+        return ""
+    rows = "".join(
+        f"<li><strong>{esc(SOURCE_LABELS.get(k, k))}</strong> — "
+        f"{esc((v.get('detail') or 'unavailable').splitlines()[0][:220])}</li>"
+        for k, v in sorted(failed.items())
+    )
+    return (
+        '<div class="wrap"><div class="outage" role="status">'
+        "<strong>⚠ Some sources did not run this week.</strong> "
+        "Listings below are from the sources that did — treat this as an "
+        "incomplete picture, not a quiet week."
+        f"<ul>{rows}</ul></div></div>"
+    )
+
+
 def build() -> str:
     cfg = load_config()
     commentary_all = read_json(WORK_DIR / "commentary.json", {}).get("profiles", {})
@@ -358,6 +390,7 @@ def build() -> str:
     )
 
     return PAGE_TEMPLATE.format(
+        source_banner=source_banner(),
         generated_human=generated.strftime("%d %b %Y, %H:%M UTC"),
         generated_iso=generated.isoformat(timespec="seconds"),
         profile_buttons=buttons,

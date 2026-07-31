@@ -333,6 +333,42 @@ def archive_path(profile: str) -> Path:
     return DATA_DIR / profile / "archive" / "all_listings.json"
 
 
+STATUS_PATH = WORK_DIR / "source_status.json"
+
+
+def record_source(source: str, ok: bool, detail: str = "") -> None:
+    """Note whether a data source succeeded this run, for the dashboard banner."""
+    status = read_json(STATUS_PATH, {})
+    status[source] = {"ok": ok, "detail": detail[:400], "at": now_iso()}
+    write_json(STATUS_PATH, status)
+
+
+def run_source(source: str, stage: str, profiles: list[str], fetch_fn) -> int:
+    """Run one fetcher, surviving a source-level outage.
+
+    Constraint #10 says never publish silently on a broken run — but that is
+    about *silence*, not about coupling. One provider returning 403 shouldn't
+    blockade a second, healthy source: the run continues, the failure is
+    recorded, and build_dashboard shows it as a banner. What stays fatal is
+    every source failing, which the workflow checks before publishing.
+    """
+    try:
+        for profile in profiles:
+            write_stage(profile, stage, fetch_fn(profile))
+        record_source(source, True)
+        return 0
+    except PipelineError as exc:
+        log.error("SOURCE FAILED (%s): %s", source, exc)
+        log.error(
+            "Continuing so other sources can still publish — this run's dashboard "
+            "will show %s as unavailable.", source,
+        )
+        for profile in profiles:
+            write_stage(profile, stage, [])
+        record_source(source, False, str(exc))
+        return 0
+
+
 def require_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:

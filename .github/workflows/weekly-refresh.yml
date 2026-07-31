@@ -83,6 +83,7 @@ jobs:
         run: |
           test -s docs/index.html || { echo "docs/index.html missing or empty"; exit 1; }
           grep -q '"profiles"' docs/index.html || { echo "dashboard has no profile data"; exit 1; }
+          python src/check_sources.py
 
       - name: Commit refreshed data and dashboard
         run: |

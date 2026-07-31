@@ -227,3 +227,17 @@ footer.site {
   .profiles { flex-direction: column; gap: 0; }
   .profiles button { border-radius: var(--radius); border-bottom: 1px solid var(--border); }
 }
+
+/* Source-outage notice. Deliberately loud: a silently shrunken list reads as
+   "quiet week" when it actually means a provider broke. */
+.outage {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-top: 22px;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.outage ul { margin: 8px 0 0; padding-left: 20px; color: var(--ink-soft); }
+.outage li { margin-top: 4px; }
