@@ -122,12 +122,16 @@ def search_google_cse(query: str, cfg: dict[str, Any]) -> list[dict[str, str]]:
         # Creating an API key and enabling the API are separate steps in Google
         # Cloud, and the "Get a Key" flow often skips the second — so this 403
         # means a setup gap, not a bad key.
+        # Google's raw body usually names the offending project number in an
+        # activation URL — that identifies WHICH project needs the API enabled,
+        # so echo it rather than hiding it behind our own summary.
         raise PipelineError(
             "Google Custom Search returned 403: the Custom Search JSON API is not "
             "enabled on the Cloud project this API key belongs to. Enable it at "
             "https://console.cloud.google.com/apis/library/customsearch.googleapis.com "
             "(select the same project the key was created in), wait a minute, then "
-            "re-run. The key itself is fine — this is a per-project API toggle."
+            "re-run. The key itself is fine — this is a per-project API toggle.\n"
+            f"Google's raw response (look for a project number in any URL):\n{resp.text[:900]}"
         )
     if resp.status_code >= 400:
         raise PipelineError(
