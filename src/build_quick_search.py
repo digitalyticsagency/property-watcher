@@ -36,6 +36,29 @@ def esc(v: object) -> str:
     return html.escape(str(v if v is not None else ""), quote=True)
 
 
+# Features worth searching for, chosen per profile. These are the words agents
+# actually write in listing copy — "creek frontage", not "waterway adjacency" —
+# because the search only matches what is really in the ad.
+FEATURES = {
+    "lifestyle_acreage": [
+        "creek", "dam", "spring water", "water views", "bush outlook",
+        "north facing", "level block", "cleared paddocks", "usable land",
+        "shed", "workshop", "stables", "orchard", "vegetable garden",
+        "chicken coop", "town water", "rainwater tank", "solar",
+        "granny flat", "second dwelling", "subdividable", "off grid",
+        "no through road", "private", "views",
+    ],
+    "house_with_granny_flat": [
+        "granny flat", "approved granny flat", "self contained", "dual living",
+        "dual income", "separate entrance", "side access", "tenanted",
+        "renovated", "original condition", "level block", "north facing",
+        "walk to station", "walk to schools", "walk to shops", "quiet street",
+        "cul de sac", "parkland", "creek", "reserve", "green outlook",
+        "large backyard", "pool", "shed", "subdividable",
+    ],
+}
+
+
 def region_drive_hours(region: str, cfg: dict) -> tuple[float | None, str]:
     """Drive time from Sydney CBD to the region centroid, measured at build time."""
     geo_cache = read_json(GEOCODE_CACHE, {})
@@ -131,7 +154,32 @@ const money = n => '$' + n.toLocaleString('en-AU');
 const state = {{}};
 DATA.profiles.forEach(p => state[p.key] = {{
   budget: p.budget_max, land: p.min_land, beds: 0, drive: p.max_drive,
+  text: '', picked: [],
 }});
+
+/* Everything the user asked for, free text plus tapped chips, de-duplicated. */
+function terms(s) {{
+  const typed = (s.text || '').split(/[,;]+/).map(t => t.trim()).filter(Boolean);
+  return [...new Set([...s.picked, ...typed])];
+}}
+
+/* A site-scoped Google query the user clicks. The portals reject automated
+   requests and accept no keyword parameter in a link, so a human-clicked search
+   is the only route free text has. Nothing here fetches or parses results. */
+function keywordSearchUrl(p, s) {{
+  const sites = ['realestate.com.au','domain.com.au','allhomes.com.au','ratemyagent.com.au'];
+  const regions = p.regions.filter(r => r.hours === null || r.hours <= s.drive)
+                           .map(r => r.name);
+  const words = terms(s).map(t => `"${{t}}"`).join(' ');
+  const q = [
+    p.acreage ? 'acreage OR "rural lifestyle"' : '"granny flat" OR "dual living"',
+    words,
+    '(' + regions.map(r => `"${{r}}"`).join(' OR ') + ')',
+    'NSW "for sale"',
+    '(' + sites.map(x => 'site:' + x).join(' OR ') + ')',
+  ].join(' ');
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q);
+}}
 
 function reaUrl(p, region, s) {{
   const type = p.acreage ? 'property-acreage+semi-rural' : 'property-house';
@@ -181,6 +229,23 @@ function controls(p) {{
           min="0.5" max="6" step="0.5" value="${{s.drive}}">
       </div>
     </div>
+    <div class="extras">
+      <label for="k-${{p.key}}">Anything else that matters to you</label>
+      <p class="hint">Type what you want — "backs onto a creek", "big shed", "green outlook" —
+        or tap the suggestions. This searches the words agents actually write in listings.</p>
+      <input id="k-${{p.key}}" type="text" class="kw" data-p="${{p.key}}" data-k="text"
+        placeholder="e.g. creek, level block, big shed" value="${{esc(s.text)}}">
+      <div class="chips">${{p.features.map(f =>
+        `<button class="chip ${{s.picked.includes(f) ? 'on' : ''}}"
+           data-chip="${{p.key}}" data-f="${{esc(f)}}">${{esc(f)}}</button>`).join('')}}</div>
+      ${{terms(s).length ? `<div class="kwgo">
+        <button class="openall" data-kw="${{p.key}}">Search these words across your areas</button>
+        <span class="kwnote">Opens Google, scoped to the property sites. The portals accept
+          no keyword in a link, so this is the only route free text has. Expect a mix of
+          individual listings and the portals' own category pages — scroll past the category
+          pages, or add a suburb name to sharpen it.</span>
+      </div>` : ''}}
+    </div>
     <button class="reset" data-reset="${{p.key}}">Back to my saved criteria</button>
   </div>`;
 }}
@@ -218,8 +283,33 @@ function render() {{
 document.addEventListener('input', e => {{
   const el = e.target.closest('[data-p]');
   if (!el) return;
+  if (el.dataset.k === 'text') {{
+    // Re-rendering on every keystroke would steal focus mid-word, so update
+    // state quietly and only refresh the button that depends on it.
+    state[el.dataset.p].text = el.value;
+    const box = el.closest('.extras').querySelector('.kwgo');
+    const need = terms(state[el.dataset.p]).length > 0;
+    if (need && !box) render();
+    else if (!need && box) render();
+    return;
+  }}
   state[el.dataset.p][el.dataset.k] = Number(el.value);
   render();
+}});
+
+document.addEventListener('click', e => {{
+  const chip = e.target.closest('[data-chip]');
+  if (chip) {{
+    const s = state[chip.dataset.chip], f = chip.dataset.f;
+    s.picked = s.picked.includes(f) ? s.picked.filter(x => x !== f) : [...s.picked, f];
+    render();
+    return;
+  }}
+  const kw = e.target.closest('[data-kw]');
+  if (kw) {{
+    const p = DATA.profiles.find(x => x.key === kw.dataset.kw);
+    window.open(keywordSearchUrl(p, state[p.key]), '_blank', 'noopener');
+  }}
 }});
 document.addEventListener('change', e => {{
   const el = e.target.closest('select[data-p]');
@@ -242,7 +332,8 @@ document.addEventListener('click', e => {{
   const btn = e.target.closest('[data-reset]');
   if (!btn) return;
   const p = DATA.profiles.find(x => x.key === btn.dataset.reset);
-  state[p.key] = {{ budget: p.budget_max, land: p.min_land, beds: 0, drive: p.max_drive }};
+  state[p.key] = {{ budget: p.budget_max, land: p.min_land, beds: 0, drive: p.max_drive,
+    text: '', picked: [] }};
   render();
 }});
 
@@ -289,6 +380,7 @@ def build() -> str:
             "land_ceiling": max(2_000, land * 5),
             "land_step": 50 if not acreage else 1_000,
             "regions": regions,
+            "features": FEATURES.get(key, []),
         })
 
     return PAGE.format(
