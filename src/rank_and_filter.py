@@ -51,14 +51,42 @@ SCORE_SCHEMA = {
                         "type": "integer",
                         "description": "Fit against this profile's criteria, 1 (poor) to 10 (excellent)",
                     },
-                    "reason": {
+                    "verdict": {
                         "type": "string",
-                        "description": "One sentence explaining the score, citing specifics from the listing",
+                        "description": (
+                            "ONE short plain-English sentence a home buyer reads first. "
+                            "Say what this place is and whether it is worth their time. "
+                            "No jargon, no zone codes, no hedging."
+                        ),
+                    },
+                    "good_points": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "1-3 short plain-English phrases naming what genuinely suits "
+                            "this buyer. Each cites a real detail. Empty if nothing does."
+                        ),
+                    },
+                    "watch_outs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "1-3 short plain-English phrases naming what could cost money "
+                            "or disappoint. Include unknowns. Empty only if genuinely none."
+                        ),
+                    },
+                    "next_action": {
+                        "type": "string",
+                        "description": (
+                            "The single most useful thing to do next, as an instruction "
+                            "starting with a verb. Concrete: who to ask, what to check. "
+                            "If it is not worth pursuing, say so plainly."
+                        ),
                     },
                     "tags": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Short lowercase-hyphenated tags, e.g. flat-land, needs-work, bushfire-risk",
+                        "description": "Short lowercase-hyphenated tags, e.g. flat-land, needs-work",
                     },
                     "confidence": {
                         "type": "string",
@@ -66,7 +94,8 @@ SCORE_SCHEMA = {
                         "description": "low whenever the listing is marked UNVERIFIED",
                     },
                 },
-                "required": ["id", "score", "reason", "tags", "confidence"],
+                "required": ["id", "score", "verdict", "good_points", "watch_outs",
+                             "next_action", "tags", "confidence"],
                 "additionalProperties": False,
             },
         }
@@ -172,6 +201,15 @@ def render_listing(listing: Listing) -> dict[str, Any]:
         "distance_confidence": listing.distance_source,
         "granny_flat_status": listing.granny_flat_status,
         "granny_flat_reasoning": listing.granny_flat_reasoning,
+        # Registry facts. These are authoritative — do not contradict them.
+        "site_checks": {
+            "zone": (listing.site.get("zoning") or {}).get("code"),
+            "zone_meaning": (listing.site.get("zoning") or {}).get("label"),
+            "council": (listing.site.get("zoning") or {}).get("lga"),
+            "bushfire": (listing.site.get("bushfire") or {}).get("text"),
+            "flood": (listing.site.get("flood") or {}).get("text"),
+            "min_lot_size": (listing.site.get("min_lot_size") or {}).get("text"),
+        } if listing.site.get("status") == "ok" else None,
         "text": (listing.snippet or "")[:1200],
         "note": (
             "UNVERIFIED — only a search-result snippet was retrieved, the listing "
@@ -213,8 +251,20 @@ Scoring rules:
   - Tags are short, lowercase, hyphenated, and factual (flat-land, steep-block,
     bushfire-risk, needs-renovation, town-water, tenanted, subdividable).
 
-Be concise and specific. One sentence per reason, citing the actual figure or
-phrase that drove the score."""
+HOW TO WRITE (this matters as much as the scoring):
+  - Write for someone buying a home, not someone who works in property. Assume
+    no knowledge of planning law, zone codes, or industry shorthand.
+  - Short sentences. Everyday words. "The block is big enough" beats "the parcel
+    satisfies the minimum lot size requirement".
+  - Never write a zone code on its own. If a zone matters, say what it means.
+  - Say the useful thing, not the safe thing. "Probably too small for what you
+    want" is more useful than "may present some constraints".
+  - Do not repeat the same fact in the verdict, the good points and the watch
+    outs. Say each thing once, in the place it belongs.
+  - next_action is an instruction, starting with a verb, that the buyer could do
+    tomorrow: ring someone, check something, book something, or skip it.
+  - Where the site checks say something is unknown, treat it as unknown. Never
+    fill a gap with a guess."""
 
 
 def score_batch(
@@ -278,10 +328,16 @@ def score_profile(
         if not entry:
             missing += 1
             listing.score = None
-            listing.score_reason = "Not scored — the model did not return an entry for this listing."
+            listing.verdict = "Not scored — the model did not return an entry for this listing."
+            listing.score_reason = listing.verdict
             continue
         listing.score = float(entry["score"])
-        listing.score_reason = entry["reason"]
+        listing.verdict = entry.get("verdict", "")
+        listing.good_points = entry.get("good_points") or []
+        listing.watch_outs = entry.get("watch_outs") or []
+        listing.next_action = entry.get("next_action", "")
+        # score_reason stays populated for the archive and any older consumer.
+        listing.score_reason = entry.get("verdict", "")
         listing.tags = sorted({*listing.tags, *(entry.get("tags") or [])})
         if entry.get("confidence") == "low":
             listing.tags = sorted({*listing.tags, "low-confidence"})

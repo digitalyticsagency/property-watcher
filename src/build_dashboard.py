@@ -65,6 +65,11 @@ def listing_payload(listing: Listing, is_new: bool) -> dict[str, Any]:
         "granny_flat_reasoning": listing.granny_flat_reasoning,
         "score": listing.score,
         "score_reason": listing.score_reason,
+        "verdict": listing.verdict or listing.score_reason,
+        "good_points": listing.good_points,
+        "watch_outs": listing.watch_outs,
+        "next_action": listing.next_action,
+        "granny_flat_next_step": listing.granny_flat_next_step,
         "tags": listing.tags,
         "site": listing.site or {},
         "region": listing.suburb or _region_guess(listing),
@@ -243,26 +248,44 @@ function siteBlock(item) {{
     rows.push(`<div><span class="k">Nearest</span> ${{esc(nearest.join(' · '))}}</div>`);
   }}
   if (!rows.length) return '';
-  return `<div class="site"><div class="site-h">Site checks — live NSW government data</div>
-    ${{rows.join('')}}</div>`;
+  return `<details class="detail site"><summary>Government records for this address</summary>
+    ${{rows.join('')}}</details>`;
 }}
 
 function card(item) {{
   const score = item.score === null || item.score === undefined
     ? '<div class="score none">n/a</div>'
-    : `<div class="score ${{scoreClass(item.score)}}">${{item.score}}</div>`;
-  const zoning = item.granny_flat_reasoning
-    ? `<p class="zoning"><strong>Zoning reasoning:</strong> ${{esc(item.granny_flat_reasoning)}}</p>` : '';
-  const site = siteBlock(item);
-  return `<article class="card ${{item.verified ? '' : 'is-unverified'}}">
-    <div>
+    : `<div class="score ${{scoreClass(item.score)}}"><b>${{item.score}}</b><i>out of 10</i></div>`;
+
+  const list = (arr, cls, label) => (arr && arr.length)
+    ? `<div class="points ${{cls}}"><span class="plabel">${{label}}</span><ul>${{
+        arr.map(t => `<li>${{esc(t)}}</li>`).join('')}}</ul></div>` : '';
+
+  const action = item.next_action
+    ? `<p class="action"><span class="alabel">Do this next</span>${{esc(item.next_action)}}</p>` : '';
+
+  const gf = item.granny_flat_reasoning
+    ? `<details class="detail"><summary>What the council rules say about a granny flat here</summary>
+       <p>${{esc(item.granny_flat_reasoning)}}</p>${{
+         item.granny_flat_next_step ? `<p class="sub">${{esc(item.granny_flat_next_step)}}</p>` : ''}}
+       </details>` : '';
+
+  return `<article class="card ${{item.verdict ? '' : 'no-verdict'}} ${{item.verified ? '' : 'is-unverified'}}">
+    <div class="head">
       <h3><a href="${{esc(item.url)}}" target="_blank" rel="noopener noreferrer">${{esc(item.title)}}</a></h3>
       <p class="facts">${{facts(item)}}</p>
-      <p class="reason">${{esc(item.score_reason || '')}}</p>
-      ${{zoning}}
-      ${{site}}
     </div>
     ${{score}}
+    <div class="body">
+      ${{item.verdict ? `<p class="verdict">${{esc(item.verdict)}}</p>` : ''}}
+      <div class="cols">
+        ${{list(item.good_points, 'good', 'Suits you')}}
+        ${{list(item.watch_outs, 'watch', 'Watch out for')}}
+      </div>
+      ${{action}}
+      ${{gf}}
+      ${{siteBlock(item)}}
+    </div>
     <div class="badges">${{badges(item)}}</div>
   </article>`;
 }}

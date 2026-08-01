@@ -104,14 +104,37 @@ def detect_zone(listing: Listing) -> tuple[str, bool]:
     return "", False
 
 
-def assess(listing: Listing) -> tuple[str, str]:
-    """Return (status, reasoning). Status is confirmed | likely | unclear."""
+def _article(word: str) -> str:
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
+def zone_phrase(listing: Listing, zone: str, authoritative: bool) -> str:
+    """'zoned R3 (Medium Density Residential)' — with the human label when we have it."""
+    label = ((listing.site or {}).get("zoning") or {}).get("label", "")
+    named = f"{zone} ({label})" if label else zone
+    where = (
+        "The council planning register says this land is"
+        if authoritative
+        else "The listing text mentions the land is"
+    )
+    return f"{where} zoned {named}."
+
+
+def assess(listing: Listing) -> tuple[str, str, str]:
+    """Return (status, explanation, next_step) — all in plain English.
+
+    Written for someone buying a house, not someone reading a planning
+    instrument. Every sentence answers one of: what did we find, what does it
+    mean for you, what should you do about it. Section and SEPP numbers are left
+    out of the explanation; they belong in the code and its comments, not in the
+    thing a buyer reads on a Saturday morning.
+    """
     text = " ".join(
         filter(None, [listing.title, listing.snippet, listing.address, listing.zoning_raw])
     )
     zone, authoritative = detect_zone(listing)
     land = listing.land_size_m2
-    notes: list[str] = []
+    said: list[str] = []
 
     existing = _matches(EXISTING_PATTERNS, text)
     potential = _matches(POTENTIAL_PATTERNS, text)
@@ -122,71 +145,99 @@ def assess(listing: Listing) -> tuple[str, str]:
         if not listing.verified:
             return (
                 "unclear — check with council",
-                f"A search snippet mentions {existing!r}, but the listing page was "
-                "never successfully fetched, so this is unconfirmed text. Open the "
-                "listing to check whether the dwelling exists and is approved.",
+                "The search result mentions a granny flat, but we could not open "
+                "the actual listing page to confirm it. Treat this as a maybe "
+                "until you have seen the listing yourself.",
+                "Open the listing and check whether the granny flat is real.",
             )
-        notes.append(f"listing states {existing!r}")
-        notes.append(
-            "confirm it is an APPROVED secondary dwelling on title — an unapproved "
-            "conversion is a liability, not an asset"
+        return (
+            "confirmed",
+            "The listing says there is already a granny flat here. That is the "
+            "thing you are looking for — but a granny flat that was built "
+            "without council approval is a cost, not a bonus, because you can be "
+            "made to fix or remove it.",
+            "Ask the agent for the granny flat's approval paperwork before you "
+            "make an offer.",
         )
-        return "confirmed", "; ".join(notes)
 
     if potential:
-        notes.append(f"listing claims potential ({potential!r}) — agent copy, not a determination")
+        said.append(
+            "The agent says there is 'potential' for a granny flat. That is "
+            "marketing, not a decision from council."
+        )
 
     if zone and zone in REASSIGNED_E_ZONES:
-        notes.append(
-            f"zone {zone} is {REASSIGNED_E_ZONES[zone]} under the NSW Employment "
-            "Zones Reform — not a residential zone, and a secondary dwelling is "
-            "not permitted"
+        return (
+            "unclear — check with council",
+            " ".join(said + [
+                zone_phrase(listing, zone, authoritative),
+                f"That is {_article(REASSIGNED_E_ZONES[zone])} "
+                f"{REASSIGNED_E_ZONES[zone].lower()} zone, not a residential one, "
+                "so you cannot expect to put a granny flat on it.",
+            ]),
+            "Skip this one unless you have checked with council directly.",
         )
-        return "unclear — check with council", "; ".join(notes)
 
     if zone:
-        source = (
-            "NSW planning register" if authoritative else "listing text (unverified)"
-        )
-        notes.append(f"zone {zone} from {source}")
+        said.append(zone_phrase(listing, zone, authoritative))
+
         if zone in SECONDARY_DWELLING_ZONES:
-            notes.append(
-                f"zone {zone} permits a secondary dwelling with consent under "
-                "SEPP (Housing) 2021 Ch.3 Pt.5"
-            )
-            if land:
-                if land >= MIN_COMPLYING_LOT_M2:
-                    cap = max(MIN_SECONDARY_DWELLING_M2, int(land * 0.05))
-                    notes.append(
-                        f"{land} m2 lot clears the ~{MIN_COMPLYING_LOT_M2} m2 "
-                        f"complying-development threshold; floor area cap ~{cap} m2"
-                    )
-                    notes.append(
-                        "still subject to the LEP minimum lot size for THIS lot, plus "
-                        "setbacks, sewer, flood and bushfire overlays"
-                    )
-                    return "likely", "; ".join(notes)
-                notes.append(
-                    f"{land} m2 lot is below the ~{MIN_COMPLYING_LOT_M2} m2 "
-                    "complying-development threshold — a DA may still succeed"
+            said.append("Granny flats are allowed in that zone if council approves one.")
+
+            if land and land >= MIN_COMPLYING_LOT_M2:
+                cap = max(MIN_SECONDARY_DWELLING_M2, int(land * 0.05))
+                said.append(
+                    f"The block is {land:,} m², comfortably above the roughly "
+                    f"{MIN_COMPLYING_LOT_M2} m² councils usually want, and you "
+                    f"could build up to about {cap} m²."
                 )
-                return "unclear — check with council", "; ".join(notes)
-            notes.append("land size unknown, so the lot-size test cannot be applied")
-            return "unclear — check with council", "; ".join(notes)
+                said.append(
+                    "Council still has the final say — this lot may have its own "
+                    "minimum size, and flood or bushfire rules can change the answer."
+                )
+                return (
+                    "likely",
+                    " ".join(said),
+                    "Worth a look. Ask council what this specific lot allows before "
+                    "you commit.",
+                )
 
-        notes.append(
-            f"zone {zone} is not one where a secondary dwelling is permitted under "
-            "SEPP (Housing) 2021"
+            if land:
+                said.append(
+                    f"The block is {land:,} m², which is under the roughly "
+                    f"{MIN_COMPLYING_LOT_M2} m² councils usually want. You may "
+                    "still get approval, but it is not the easy path."
+                )
+                return (
+                    "unclear — check with council",
+                    " ".join(said),
+                    "Ask council whether a granny flat is possible on a block this size.",
+                )
+
+            said.append("We could not find the block size, so we cannot judge whether it is big enough.")
+            return (
+                "unclear — check with council",
+                " ".join(said),
+                "Find the block size on the listing, then check it against council's minimum.",
+            )
+
+        said.append("Granny flats are not allowed in that zone.")
+        return (
+            "unclear — check with council",
+            " ".join(said),
+            "Skip this one unless council tells you otherwise.",
         )
-        return "unclear — check with council", "; ".join(notes)
 
-    notes.append("no zoning information found in the listing")
+    said.append("We could not find out how this land is zoned.")
     if land and land >= MIN_COMPLYING_LOT_M2:
-        notes.append(
-            f"{land} m2 lot would be large enough IF the zone permits it — "
-            "look up the lot on the NSW Planning Portal"
+        said.append(
+            f"The block is {land:,} m², which would be big enough if the zoning allows it."
         )
-    return "unclear — check with council", "; ".join(notes)
+    return (
+        "unclear — check with council",
+        " ".join(said),
+        "Look the address up on the NSW Planning Portal to find its zone.",
+    )
 
 
 def process_profile(profile: str) -> list[Listing]:
@@ -199,9 +250,10 @@ def process_profile(profile: str) -> list[Listing]:
 
     counts: dict[str, int] = {}
     for listing in listings:
-        status, reasoning = assess(listing)
+        status, reasoning, next_step = assess(listing)
         listing.granny_flat_status = status
         listing.granny_flat_reasoning = reasoning
+        listing.granny_flat_next_step = next_step
         listing.tags = sorted({*listing.tags, f"granny-flat:{status.split(' ')[0]}"})
         counts[status] = counts.get(status, 0) + 1
 

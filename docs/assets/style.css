@@ -139,12 +139,61 @@ header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 18px 20px;
   box-shadow: var(--shadow);
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px 18px;
+  gap: 12px 20px;
 }
+.card .head { min-width: 0; }
+.card .body { grid-column: 1 / -1; }
+
+/* The verdict is the one line a buyer must read, so it is set larger than the
+   supporting detail rather than being another paragraph of body copy. */
+.verdict {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; margin-bottom: 14px; }
+.points ul { margin: 0; padding-left: 18px; }
+.points li { margin-top: 3px; font-size: .9rem; color: var(--ink-soft); }
+.plabel {
+  display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.points.good .plabel { color: var(--accent); }
+.points.watch .plabel { color: var(--warn); }
+.points.good li::marker { color: var(--accent); }
+.points.watch li::marker { color: var(--warn); }
+
+/* The action is the exit from the card: what to actually do. Given its own
+   surface so the eye lands on it after the verdict without reading everything. */
+.action {
+  margin: 0 0 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: .93rem;
+  color: var(--ink);
+}
+.alabel {
+  display: block; font-size: .7rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 3px; font-weight: 700;
+}
+
+/* Supporting evidence is collapsed by default — present for anyone who wants
+   it, silent for anyone who just wants the verdict and the action. */
+.detail { margin-top: 8px; font-size: .86rem; }
+.detail summary {
+  cursor: pointer; color: var(--ink-faint); font-size: .82rem;
+  padding: 4px 0; list-style-position: outside;
+}
+.detail summary:hover { color: var(--accent); }
+.detail > p { margin: 6px 0 0; color: var(--ink-soft); line-height: 1.55; }
+.detail > p.sub { color: var(--ink-faint); }
 /* Unverified = search snippet only, listing page never read. This must be
    unmistakable at a glance, so the whole card is tinted rather than tagged with
    a side rule — the tint reads across a long scrolling list, where a 4px edge
@@ -173,7 +222,8 @@ header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 
   align-self: start;
   display: grid;
   place-items: center;
-  width: 54px; height: 54px;
+  align-content: center;
+  width: 62px; height: 62px;
   border-radius: 50%;
   font-weight: 700;
   font-size: 1.15rem;
@@ -185,6 +235,8 @@ header.site .meta { color: var(--ink-faint); font-size: 0.85rem; margin-bottom: 
 .score.mid { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
 .score.low { background: transparent; color: var(--ink-faint); border-color: var(--border); }
 .score.none { font-size: 0.8rem; }
+.score b { font-size: 1.35rem; line-height: 1; }
+.score i { font-style: normal; font-size: .58rem; letter-spacing: .03em; opacity: .8; margin-top: 2px; }
 
 .badges { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge {
@@ -221,6 +273,10 @@ footer.site {
 
 .hidden { display: none !important; }
 
+@media (max-width: 700px) {
+  .cols { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 620px) {
   .card { grid-template-columns: 1fr; }
   .score { justify-self: start; }
@@ -244,10 +300,13 @@ footer.site {
 
 /* Site checks — live NSW government data. Distinct from the AI commentary
    above it, because this is registry fact rather than model judgement. */
-.site { margin: 10px 0 0; font-size: .85rem; background: var(--bg);
-  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-.site-h { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--ink-faint); margin-bottom: 6px; }
+/* As a collapsed <details> this must read as one quiet line, not an empty
+   bordered box. The panel styling only applies once it is actually open. */
+.detail.site { font-size: .85rem; }
+.detail.site[open] {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-top: 10px;
+}
 .site > div { margin-top: 4px; color: var(--ink-soft); }
 .site .k { display: inline-block; min-width: 96px; color: var(--ink-faint); }
 .site .src { font-size: .72rem; color: var(--ink-faint); }

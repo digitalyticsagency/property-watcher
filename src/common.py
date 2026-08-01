@@ -161,8 +161,14 @@ class Listing:
     distance_source: str = ""
     granny_flat_status: str = ""
     granny_flat_reasoning: str = ""
+    granny_flat_next_step: str = ""
     score: float | None = None
     score_reason: str = ""
+    # Plain-English analysis written for a home buyer, not a planner.
+    verdict: str = ""
+    good_points: list[str] = field(default_factory=list)
+    watch_outs: list[str] = field(default_factory=list)
+    next_action: str = ""
     tags: list[str] = field(default_factory=list)
     rejected_reason: str = ""
     # Live NSW government site checks (zoning, bushfire, flood, amenities).
