@@ -11,10 +11,11 @@
 <header class="site">
   <div class="wrap">
     <h1>NSW Property Watcher</h1>
-    <p class="meta">Last refreshed 31 Jul 2026, 21:55 UTC · 2026-07-31T21:55:24+00:00</p>
+    <p class="meta"><a href="search.html">Quick search →</a> · Last refreshed 01 Aug 2026, 03:52 UTC · 2026-08-01T03:52:13+00:00</p>
     <nav class="profiles" role="tablist" aria-label="Buyer profile"><button role="tab" data-profile="lifestyle_acreage" aria-selected="true">Lifestyle acreage</button><button role="tab" data-profile="house_with_granny_flat" aria-selected="false">House with granny flat</button></nav>
   </div>
 </header>
+
 
 <main class="wrap" id="app"></main>
 
@@ -27,7 +28,7 @@
   rules, not planning advice; confirm with the relevant council.</p>
 </footer>
 
-<script id="data" type="application/json">{"generated_at": "2026-07-31T21:55:24+00:00", "profiles": [{"key": "lifestyle_acreage", "label": "Lifestyle acreage", "criteria": {"regions": ["Shoalhaven", "Blue Mountains", "Southern Highlands", "Hunter Valley", "Hills District"], "budget_max": 1400000, "budget_min": 0, "min_land": 4000, "max_drive": 4}, "commentary": {"weekly_summary": "Two candidates this week.", "top_pick_ids": [], "tab_intros": {"all_matches": "All current granny-flat candidates.", "archive": "Full history.", "by_score": "Ranked by fit.", "overview": "One confirmed granny flat and one snippet-only candidate.", "tags": "Filter by tag."}}, "current": [], "archive": [], "stats": {"total": 0, "new": 0, "verified": 0, "unverified": 0, "archive": 0}}, {"key": "house_with_granny_flat", "label": "House with granny flat", "criteria": {"regions": ["Wilton", "Campbelltown", "Picton", "Penrith", "Blacktown", "Tahmoor"], "budget_max": 950000, "budget_min": 0, "min_land": 600, "max_drive": 1.5}, "commentary": {"weekly_summary": "Two candidates this week.", "top_pick_ids": [], "tab_intros": {"all_matches": "All current granny-flat candidates.", "archive": "Full history.", "by_score": "Ranked by fit.", "overview": "One confirmed granny flat and one snippet-only candidate.", "tags": "Filter by tag."}}, "current": [{"id": "65dcafb13b13864b", "url": "https://www.domain.com.au/12-jones-st-wilton", "title": "12 Jones Street, Wilton", "address": "12 Jones Street, Wilton", "source": "email_alert", "verified": true, "unverified_reason": "", "price_text": "$865,000", "price_aud": 865000, "land_size_m2": 720, "bedrooms": 4, "bathrooms": 2, "drive_hours": 1.1, "distance_source": "osrm", "granny_flat_status": "confirmed", "granny_flat_reasoning": "listing states 'granny flat'; confirm it is an APPROVED secondary dwelling on title", "score": 9, "score_reason": "Confirmed tenanted granny flat with separate driveway; comfortably inside budget.", "tags": ["tenanted", "separate-access"], "region": "Wilton", "is_new": false, "first_seen": "", "last_seen": ""}, {"id": "8ba28e546dc1018d", "url": "https://www.ratemyagent.com.au/listing/penrith", "title": "Penrith — dual living opportunity", "address": "", "source": "search_api", "verified": false, "unverified_reason": "fetch returned HTTP 403", "price_text": "$880,000", "price_aud": 880000, "land_size_m2": 430, "bedrooms": null, "bathrooms": null, "drive_hours": 1.0, "distance_source": "osrm", "granny_flat_status": "unclear — check with council", "granny_flat_reasoning": "listing claims potential ('granny flat potential') — agent copy, not a determination; no zoning information found", "score": 6, "score_reason": "Snippet claims dual living but the page could not be read; lot is below the complying-development threshold.", "tags": ["low-confidence", "price-unknown"], "region": "Penrith", "is_new": false, "first_seen": "", "last_seen": ""}], "archive": [], "stats": {"total": 2, "new": 0, "verified": 1, "unverified": 1, "archive": 0}}]}</script>
+<script id="data" type="application/json">{"generated_at": "2026-08-01T03:52:13+00:00", "profiles": [{"key": "lifestyle_acreage", "label": "Lifestyle acreage", "criteria": {"regions": ["Shoalhaven", "Blue Mountains", "Southern Highlands", "Hunter Valley", "Hills District"], "budget_max": 1400000, "budget_min": 0, "min_land": 4000, "max_drive": 4}, "commentary": {"weekly_summary": "No listings yet. Once a data source is connected, matching properties appear here with a plain-English verdict and a next step for each one.", "top_pick_ids": [], "tab_intros": {"all_matches": "Every property currently for sale that fits your budget and area will be listed here.", "archive": "Everything seen so far, including listings that have since sold.", "by_score": "Best fit first, once there are listings to rank.", "overview": "Nothing to show yet — this fills in after the first successful run.", "tags": "Filter by what matters to you — bushfire, granny flat status, and so on."}}, "current": [], "archive": [], "stats": {"total": 0, "new": 0, "verified": 0, "unverified": 0, "archive": 0}}, {"key": "house_with_granny_flat", "label": "House with granny flat", "criteria": {"regions": ["Wilton", "Campbelltown", "Picton", "Penrith", "Blacktown", "Tahmoor"], "budget_max": 950000, "budget_min": 0, "min_land": 600, "max_drive": 1.5}, "commentary": {"weekly_summary": "No listings yet. Once a data source is connected, matching properties appear here with a plain-English verdict and a next step for each one.", "top_pick_ids": [], "tab_intros": {"all_matches": "Every property currently for sale that fits your budget and area will be listed here.", "archive": "Everything seen so far, including listings that have since sold.", "by_score": "Best fit first, once there are listings to rank.", "overview": "Nothing to show yet — this fills in after the first successful run.", "tags": "Filter by what matters to you — bushfire, granny flat status, and so on."}}, "current": [], "archive": [], "stats": {"total": 0, "new": 0, "verified": 0, "unverified": 0, "archive": 0}}]}</script>
 <script>
 const DATA = JSON.parse(document.getElementById('data').textContent);
 const TABS = [["overview", "Overview"], ["all_matches", "All current matches"], ["by_score", "By fit score"], ["tags", "Tag filters"], ["archive", "Archive"]];
@@ -82,20 +83,77 @@ function badges(item) {
   return out.join('');
 }
 
+const HAZARD_CLASS = {on:'bad', near:'warn', clear:'good', unknown:'unk'};
+
+function siteBlock(item) {
+  const s = item.site || {};
+  if (s.status !== 'ok') return '';
+  const rows = [];
+  const z = s.zoning || {};
+  if (z.code) {
+    rows.push(`<div><span class="k">Zone</span> <strong>${esc(z.code)}</strong>
+      ${esc(z.label || '')}${z.lga ? ' · ' + esc(z.lga) : ''}
+      <span class="src">NSW planning register</span></div>`);
+  }
+  const lot = s.min_lot_size || {};
+  if (lot.text) rows.push(`<div><span class="k">Min lot size</span> ${esc(lot.text)}</div>`);
+
+  ['bushfire','flood'].forEach(key => {
+    const h = s[key]; if (!h || !h.text) return;
+    rows.push(`<div><span class="k">${key === 'bushfire' ? 'Bush fire' : 'Flood'}</span>
+      <span class="haz ${HAZARD_CLASS[h.level] || 'unk'}">${esc(h.text)}</span>
+      ${h.detail ? `<div class="hint">${esc(h.detail)}</div>` : ''}</div>`);
+  });
+
+  const am = s.amenities || {};
+  const labels = {school:'Schools',hospital:'Hospitals',pharmacy:'Pharmacies',doctors:'GPs',
+    childcare:'Childcare',fuel:'Fuel',supermarket:'Supermarkets',station:'Train stations',
+    post_office:'Post offices',bank:'Banks'};
+  const nearest = Object.entries(am)
+    .filter(([k, v]) => v && v.length)
+    .map(([k, v]) => `${labels[k] || k}: ${v[0].km} km`);
+  if (nearest.length) {
+    rows.push(`<div><span class="k">Nearest</span> ${esc(nearest.join(' · '))}</div>`);
+  }
+  if (!rows.length) return '';
+  return `<details class="detail site"><summary>Government records for this address</summary>
+    ${rows.join('')}</details>`;
+}
+
 function card(item) {
   const score = item.score === null || item.score === undefined
     ? '<div class="score none">n/a</div>'
-    : `<div class="score ${scoreClass(item.score)}">${item.score}</div>`;
-  const zoning = item.granny_flat_reasoning
-    ? `<p class="zoning"><strong>Zoning reasoning:</strong> ${esc(item.granny_flat_reasoning)}</p>` : '';
-  return `<article class="card ${item.verified ? '' : 'is-unverified'}">
-    <div>
+    : `<div class="score ${scoreClass(item.score)}"><b>${item.score}</b><i>out of 10</i></div>`;
+
+  const list = (arr, cls, label) => (arr && arr.length)
+    ? `<div class="points ${cls}"><span class="plabel">${label}</span><ul>${
+        arr.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : '';
+
+  const action = item.next_action
+    ? `<p class="action"><span class="alabel">Do this next</span>${esc(item.next_action)}</p>` : '';
+
+  const gf = item.granny_flat_reasoning
+    ? `<details class="detail"><summary>What the council rules say about a granny flat here</summary>
+       <p>${esc(item.granny_flat_reasoning)}</p>${
+         item.granny_flat_next_step ? `<p class="sub">${esc(item.granny_flat_next_step)}</p>` : ''}
+       </details>` : '';
+
+  return `<article class="card ${item.verdict ? '' : 'no-verdict'} ${item.verified ? '' : 'is-unverified'}">
+    <div class="head">
       <h3><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a></h3>
       <p class="facts">${facts(item)}</p>
-      <p class="reason">${esc(item.score_reason || '')}</p>
-      ${zoning}
     </div>
     ${score}
+    <div class="body">
+      ${item.verdict ? `<p class="verdict">${esc(item.verdict)}</p>` : ''}
+      <div class="cols">
+        ${list(item.good_points, 'good', 'Suits you')}
+        ${list(item.watch_outs, 'watch', 'Watch out for')}
+      </div>
+      ${action}
+      ${gf}
+      ${siteBlock(item)}
+    </div>
     <div class="badges">${badges(item)}</div>
   </article>`;
 }
