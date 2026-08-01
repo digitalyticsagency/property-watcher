@@ -152,8 +152,8 @@ PAGE_TEMPLATE = """<!doctype html>
 <main class="wrap" id="app"></main>
 
 <footer class="site wrap">
-  <p>Listings reached via saved-search email alerts, the Google Custom Search JSON API,
-  and (where enabled) the Domain Developer API. Cards marked
+  <p>Listings found via the Google Custom Search JSON API and, where enabled, the
+  Domain Developer API. Cards marked
   <span class="badge warn">UNVERIFIED</span> come from a search-result snippet only —
   the listing page could not be read, so open the link before trusting any detail.
   Granny-flat assessments are automated reasoning against NSW secondary dwelling
@@ -200,8 +200,7 @@ function badges(item) {{
     const why = item.unverified_reason ? ' — ' + esc(item.unverified_reason) : '';
     out.push(`<span class="badge warn" title="Open the link to confirm${{why}}">⚠ UNVERIFIED — open link to confirm</span>`);
   }}
-  out.push(`<span class="badge">via ${{item.source === 'email_alert' ? 'email alert'
-    : item.source === 'search_api' ? 'web search' : 'Domain API'}}</span>`);
+  out.push(`<span class="badge">via ${{item.source === 'search_api' ? 'web search' : 'Domain API'}}</span>`);
   if (item.granny_flat_status) {{
     const kind = item.granny_flat_status.startsWith('confirmed') ? 'gf-confirmed'
       : item.granny_flat_status.startsWith('likely') ? 'gf-likely' : 'gf-unclear';
@@ -312,7 +311,6 @@ function filterBar(items, opts) {{
     </select></label>`);
   if (opts.source) parts.push(`<label>Source
     <select data-filter="source"><option value="">All</option>
-      <option value="email_alert" ${{filters.source === 'email_alert' ? 'selected' : ''}}>Email alert</option>
       <option value="search_api" ${{filters.source === 'search_api' ? 'selected' : ''}}>Web search (unverified)</option>
       <option value="domain_api" ${{filters.source === 'domain_api' ? 'selected' : ''}}>Domain API</option>
     </select></label>`);
@@ -404,7 +402,6 @@ render();
 
 
 SOURCE_LABELS = {
-    "email_alerts": "Saved-search email alerts",
     "search_api": "Web search discovery",
     "domain_api": "Domain API",
 }

@@ -35,9 +35,6 @@ jobs:
     env:
       PYTHONPATH: src
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
-      GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-      GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
       # Left of the colon is what the Python reads; right is the secret name as
       # stored in this repo. They differ because the secrets were added under
       # shorter names, and GitHub has no rename — mapping here avoids re-pasting
@@ -59,9 +56,6 @@ jobs:
 
       - name: Validate config
         run: python -c "import sys; sys.path.insert(0,'src'); import common; common.load_config(); print('config OK')"
-
-      - name: Fetch — Path A (saved-search email alerts)
-        run: python src/fetch_email_alerts.py
 
       - name: Fetch — Path C (search API discovery)
         run: python src/fetch_search_api.py

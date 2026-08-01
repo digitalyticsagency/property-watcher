@@ -1,8 +1,8 @@
 """Merge all sources per profile, geocode, and apply the drive-time filter.
 
 Merging happens here (not in the fetchers) so each listing keeps its `source`
-tag through the merge — the dashboard needs to show "via email alert" vs
-"via web search" (Step 3 of the brief).
+tag through the merge — the dashboard shows which source each listing came
+from.
 
 Distance uses two free services with a graceful ladder:
   1. Nominatim (OpenStreetMap) to geocode the address — cached on disk.
@@ -42,7 +42,7 @@ OSRM_URL = "https://router.project-osrm.org/route/v1/driving"
 GEOCODE_CACHE = CACHE_DIR / "geocode.json"
 ROUTE_CACHE = CACHE_DIR / "routes.json"
 
-SOURCE_STAGES = ("email_alerts", "search_api", "domain_api")
+SOURCE_STAGES = ("search_api", "domain_api")
 
 
 def haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:

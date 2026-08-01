@@ -139,7 +139,7 @@ class Listing:
 
     url: str
     profile: str
-    source: str  # email_alert | search_api | domain_api
+    source: str  # search_api | domain_api
     title: str = ""
     snippet: str = ""
     address: str = ""

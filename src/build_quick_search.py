@@ -1,10 +1,13 @@
-"""Generate docs/search.html — one-click, pre-filtered searches per profile.
+"""Generate docs/search.html — searches you can retune in the browser.
 
-Why this exists: the automated pipeline needs API keys and OAuth that turned out
-to be more friction than the results were worth. This page needs none of that.
-It reads the same config.yaml criteria and turns them into deep links that open
-each portal already filtered to your budget, land size and suburb — so the
-"search" step is one click instead of a form you re-fill every time.
+The criteria in config.yaml are a starting point, not a cage. This page ships
+them as defaults and then lets you move price, land size and bedrooms with the
+controls at the top; every portal link rebuilds instantly from whatever the
+controls currently say. Nothing is recomputed on a server, so there is no run to
+wait for and nothing to redeploy when you change your mind.
+
+Drive times are the exception: they are measured once at build time via OSRM,
+because they depend on the region rather than on your filters.
 
 Regenerate after editing config.yaml:
     PYTHONPATH=src python src/build_quick_search.py
@@ -13,11 +16,19 @@ Regenerate after editing config.yaml:
 from __future__ import annotations
 
 import html
+import json
 import sys
 from datetime import datetime, timezone
-from urllib.parse import quote
 
-from common import DOCS_DIR, PipelineError, load_config, log, profile_config, read_json, write_json
+from common import (
+    DOCS_DIR,
+    PipelineError,
+    load_config,
+    log,
+    profile_config,
+    read_json,
+    write_json,
+)
 from geocode_distance import GEOCODE_CACHE, ROUTE_CACHE, drive_hours, geocode
 
 
@@ -25,77 +36,8 @@ def esc(v: object) -> str:
     return html.escape(str(v if v is not None else ""), quote=True)
 
 
-def slug(region: str) -> str:
-    return quote(region.lower().replace(" ", "-"))
-
-
-def portal_links(region: str, profile: str, p: dict) -> list[tuple[str, str, str]]:
-    """Deep links per portal: (name, url, which filters that link actually applies).
-
-    The two portals get different treatment on purpose.
-
-    Domain documents its query-string filters (price, landsize + landsizeunit,
-    ptype, excludeunderoffer), so the full criteria go in and the link lands on a
-    correctly filtered list.
-
-    realestate.com.au uses a path-slug grammar that is undocumented, and it can
-    be verified from neither curl (429) nor a browser here (blocked by policy).
-    So it gets only the parts of that grammar that are well attested — property
-    type and price band — and no invented land-size segment. Overstating what a
-    link filters is worse than under-filtering, because you would trust a result
-    list that had quietly ignored your land requirement.
-    """
-    budget = p["budget_max_aud"]
-    land = p["min_land_size_m2"]
-    acreage = profile == "lifestyle_acreage"
-
-    rea_type = "property-acreage+semi-rural" if acreage else "property-house"
-    rea = (
-        f"https://www.realestate.com.au/buy/{rea_type}-between-0-{budget}"
-        f"-in-{slug(region)},+nsw/list-1"
-    )
-
-    dom_type = "acreage-semi-rural,rural" if acreage else "house,duplex,semi-detached"
-    dom = (
-        f"https://www.domain.com.au/sale/{slug(region)}-nsw/"
-        f"?price=0-{budget}&landsize={land}-any&landsizeunit=m2"
-        f"&ptype={dom_type}&excludeunderoffer=1"
-    )
-
-    return [
-        ("realestate.com.au", rea, "price + type"),
-        ("domain.com.au", dom, "price + type + land size"),
-    ]
-
-
-CSS = """
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-.wrap{max-width:900px;margin:0 auto;padding:32px 20px 72px}
-h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
-.meta{color:var(--ink-faint);font-size:.85rem;margin-bottom:28px}
-h2{font-size:1.15rem;margin:34px 0 4px}
-.crit{color:var(--ink-soft);font-size:.88rem;margin:0 0 16px}
-.region{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);
-  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.region .name{font-weight:650;min-width:170px}
-.region a{font-size:.86rem;text-decoration:none;color:var(--accent);
-  border:1px solid var(--border);border-radius:999px;padding:5px 12px;background:var(--bg)}
-.region a:hover{border-color:var(--accent)}
-.note{background:var(--accent-soft);border-radius:var(--radius);padding:14px 18px;
-  font-size:.92rem;color:var(--ink-soft);margin:20px 0 8px}
-.nav{margin-bottom:18px;font-size:.9rem}
-.nav a{color:var(--accent)}
-"""
-
-
 def region_drive_hours(region: str, cfg: dict) -> tuple[float | None, str]:
-    """Drive time from Sydney CBD to the region centroid.
-
-    No portal can filter on drive time, so it is resolved here instead and shown
-    per region. That turns the third criterion from decoration into something
-    that actually tells you which regions clear your limit.
-    """
+    """Drive time from Sydney CBD to the region centroid, measured at build time."""
     geo_cache = read_json(GEOCODE_CACHE, {})
     route_cache = read_json(ROUTE_CACHE, {})
     origin = tuple((cfg.get("geocoding") or {}).get("sydney_cbd", [-33.8688, 151.2093]))
@@ -110,71 +52,241 @@ def region_drive_hours(region: str, cfg: dict) -> tuple[float | None, str]:
     return round(hours, 1), source
 
 
-def build() -> str:
-    cfg = load_config()
-    now = datetime.now(timezone.utc)
-    sections = []
+CSS = """
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:32px 20px 72px}
+h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+.meta{color:var(--ink-faint);font-size:.85rem;margin-bottom:22px}
+.nav{margin-bottom:18px;font-size:.9rem}.nav a{color:var(--accent)}
+.note{background:var(--accent-soft);border-radius:var(--radius);padding:14px 18px;
+  font-size:.92rem;color:var(--ink-soft);margin:20px 0 26px}
 
-    for key in cfg["profiles"]:
-        p = profile_config(cfg, key)
-        limit = float(p["max_drive_hours_from_sydney_cbd"])
-        rows = []
-        for region in p.get("target_regions", []):
-            links = "".join(
-                f'<a href="{esc(u)}" target="_blank" rel="noopener noreferrer" '
-                f'title="Applies: {esc(f)}">{esc(n)}</a>'
-                for n, u, f in portal_links(region, key, p)
-            )
-            hours, source = region_drive_hours(region, cfg)
-            if hours is None:
-                drive = '<span class="drive unk">drive time unknown</span>'
-            else:
-                over = hours > limit
-                approx = " approx." if source == "estimated" else ""
-                drive = (
-                    f'<span class="drive {"over" if over else "ok"}">{hours} h to centre'
-                    f'{approx}{" — over limit" if over else ""}</span>'
-                )
-            rows.append(
-                f'<div class="region"><span class="name">{esc(region)}</span>'
-                f"{drive}{links}</div>"
-            )
-        crit = (
-            f"Up to ${p['budget_max_aud']:,} · land from {p['min_land_size_m2']:,} m² · "
-            f"within {limit} h of Sydney CBD"
-        )
-        sections.append(
-            f"<h2>{esc(p.get('label', key))}</h2>"
-            f'<p class="crit">{esc(crit)}</p>{"".join(rows)}'
-        )
+/* Controls. Deliberately at the top and always visible — they are the point of
+   the page, not a settings drawer you have to go find. */
+.controls{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px;margin:0 0 10px;box-shadow:var(--shadow)}
+.controls h2{font-size:1.02rem;margin:0 0 2px}
+.controls .hint{font-size:.82rem;color:var(--ink-faint);margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px 20px}
+.field label{display:block;font-size:.74rem;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:6px}
+.field .val{font-size:1.12rem;font-weight:650;font-variant-numeric:tabular-nums;
+  margin-bottom:6px;color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+select{width:100%;font:inherit;font-size:.9rem;padding:7px 10px;border:1px solid var(--border);
+  border-radius:8px;background:var(--bg);color:var(--ink)}
+.reset{margin-top:16px;font:inherit;font-size:.84rem;padding:7px 14px;cursor:pointer;
+  border:1px solid var(--border);border-radius:999px;background:var(--bg);color:var(--ink-soft)}
+.reset:hover{border-color:var(--accent);color:var(--accent)}
+.changed{color:var(--warn);font-size:.8rem;margin-left:10px}
 
-    return f"""<!doctype html>
-<html lang="en-AU"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>Quick search — NSW Property Watcher</title>
-<link rel="stylesheet" href="assets/style.css"><style>{CSS}</style></head>
-<body><div class="wrap">
-<h1>Quick search</h1>
-<p class="meta">Generated {now.strftime('%d %b %Y')} from config.yaml · every link opens
-that portal already filtered to the criteria below</p>
-<p class="nav"><a href="index.html">← back to the dashboard</a></p>
-<div class="note"><strong>No setup, no keys, no waiting.</strong> Every link carries your
-price cap and property type. <strong>Domain links also apply your land-size minimum</strong>;
-realestate.com.au's land-size URL format is undocumented and could not be verified, so set
-that one filter in their panel once and it sticks for the session. Hover a link to see exactly
-which filters it applies. Neither portal can filter on drive time, so it is measured here per
-region and flagged when a region is outside your limit. Those times are to the
-<em>centre</em> of each region, so a large LGA can read as over the limit while its near
-edge is well inside it — treat a flag as "check where in this region", not "rule it out".</div>
-{''.join(sections)}
-</div></body></html>
+h2.profile{font-size:1.15rem;margin:30px 0 4px}
+.crit{color:var(--ink-soft);font-size:.88rem;margin:0 0 16px}
+.region{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.region .name{font-weight:650;min-width:160px}
+.region .drive{font-size:.8rem;font-variant-numeric:tabular-nums;min-width:128px;color:var(--ink-faint)}
+.region .drive.over{color:var(--warn);font-weight:600}
+.region .drive.unk{font-style:italic}
+.region a{font-size:.86rem;text-decoration:none;color:var(--accent);
+  border:1px solid var(--border);border-radius:999px;padding:5px 12px;background:var(--bg)}
+.region a:hover{border-color:var(--accent)}
+.region.hidden{display:none}
+@media (max-width:620px){.region .name,.region .drive{min-width:0;flex-basis:100%}}
 """
 
 
+PAGE = """<!doctype html>
+<html lang="en-AU"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Quick search — NSW Property Watcher</title>
+<link rel="stylesheet" href="assets/style.css"><style>{css}</style></head>
+<body><div class="wrap">
+<h1>Quick search</h1>
+<p class="meta">Built {built} · move the sliders, the links update as you go</p>
+<p class="nav"><a href="index.html">← back to the dashboard</a></p>
+
+<div class="note"><strong>No setup, no waiting.</strong> Change anything below and every
+link rebuilds instantly — nothing is saved, nothing re-runs, so you can try a bigger budget
+or a smaller block and see what it opens up. Domain links carry price, land size and
+property type. realestate.com.au's land-size URL format is undocumented and could not be
+verified, so those links carry price and type only. Drive times are measured to the centre
+of each region, so a large area can read as over your limit while its near edge is well
+inside it.</div>
+
+<div id="app"></div>
+</div>
+
+<script id="data" type="application/json">{data}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+const slug = r => encodeURIComponent(r.toLowerCase().replace(/ /g, '-'));
+const money = n => '$' + n.toLocaleString('en-AU');
+
+/* Live filter state, seeded from config.yaml and reset back to it on demand. */
+const state = {{}};
+DATA.profiles.forEach(p => state[p.key] = {{
+  budget: p.budget_max, land: p.min_land, beds: 0, hideOver: false,
+}});
+
+function reaUrl(p, region, s) {{
+  const type = p.acreage ? 'property-acreage+semi-rural' : 'property-house';
+  const beds = s.beds ? `-with-${{s.beds}}-bedrooms` : '';
+  return `https://www.realestate.com.au/buy/${{type}}${{beds}}-between-0-${{s.budget}}`
+       + `-in-${{slug(region)}},+nsw/list-1`;
+}}
+
+function domainUrl(p, region, s) {{
+  const type = p.acreage ? 'acreage-semi-rural,rural' : 'house,duplex,semi-detached';
+  const beds = s.beds ? `&bedrooms=${{s.beds}}-any` : '';
+  return `https://www.domain.com.au/sale/${{slug(region)}}-nsw/?price=0-${{s.budget}}`
+       + `&landsize=${{s.land}}-any&landsizeunit=m2&ptype=${{type}}${{beds}}&excludeunderoffer=1`;
+}}
+
+function controls(p) {{
+  const s = state[p.key];
+  const dirty = s.budget !== p.budget_max || s.land !== p.min_land || s.beds !== 0;
+  return `<div class="controls">
+    <h2>Change what you are looking for</h2>
+    <p class="hint">Starts from your saved criteria. Nothing here is saved — it only changes
+      the links below.${{dirty ? '<span class="changed">· changed from your saved criteria</span>' : ''}}</p>
+    <div class="grid">
+      <div class="field">
+        <label for="b-${{p.key}}">Most you would pay</label>
+        <div class="val">${{money(s.budget)}}</div>
+        <input id="b-${{p.key}}" type="range" data-p="${{p.key}}" data-k="budget"
+          min="${{p.budget_floor}}" max="${{p.budget_ceiling}}" step="25000" value="${{s.budget}}">
+      </div>
+      <div class="field">
+        <label for="l-${{p.key}}">Smallest block</label>
+        <div class="val">${{s.land.toLocaleString('en-AU')}} m²</div>
+        <input id="l-${{p.key}}" type="range" data-p="${{p.key}}" data-k="land"
+          min="${{p.land_floor}}" max="${{p.land_ceiling}}" step="${{p.land_step}}" value="${{s.land}}">
+      </div>
+      <div class="field">
+        <label for="d-${{p.key}}">Bedrooms, at least</label>
+        <select id="d-${{p.key}}" data-p="${{p.key}}" data-k="beds">
+          ${{[0,1,2,3,4,5].map(n => `<option value="${{n}}" ${{s.beds===n?'selected':''}}>`
+            + (n ? n + '+' : 'Any') + '</option>').join('')}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="h-${{p.key}}">Areas over your drive limit</label>
+        <select id="h-${{p.key}}" data-p="${{p.key}}" data-k="hideOver">
+          <option value="false" ${{!s.hideOver?'selected':''}}>Show them</option>
+          <option value="true" ${{s.hideOver?'selected':''}}>Hide them</option>
+        </select>
+      </div>
+    </div>
+    <button class="reset" data-reset="${{p.key}}">Back to my saved criteria</button>
+  </div>`;
+}}
+
+function regions(p) {{
+  const s = state[p.key];
+  return p.regions.map(r => {{
+    const over = r.hours !== null && r.hours > p.max_drive;
+    if (over && s.hideOver) return '';
+    const drive = r.hours === null
+      ? '<span class="drive unk">drive time unknown</span>'
+      : `<span class="drive ${{over ? 'over' : ''}}">${{r.hours}} h to centre${{
+          r.estimated ? ' approx.' : ''}}${{over ? ' — over limit' : ''}}</span>`;
+    return `<div class="region"><span class="name">${{esc(r.name)}}</span>${{drive}}
+      <a href="${{esc(reaUrl(p, r.name, s))}}" target="_blank" rel="noopener noreferrer"
+         title="Applies: price + property type${{s.beds ? ' + bedrooms' : ''}}">realestate.com.au</a>
+      <a href="${{esc(domainUrl(p, r.name, s))}}" target="_blank" rel="noopener noreferrer"
+         title="Applies: price + property type + land size${{s.beds ? ' + bedrooms' : ''}}">domain.com.au</a>
+    </div>`;
+  }}).join('');
+}}
+
+function render() {{
+  document.getElementById('app').innerHTML = DATA.profiles.map(p => {{
+    const s = state[p.key];
+    return `<h2 class="profile">${{esc(p.label)}}</h2>
+      <p class="crit">Up to ${{money(s.budget)}} · land from ${{s.land.toLocaleString('en-AU')}} m²
+        ${{s.beds ? ' · ' + s.beds + '+ bedrooms' : ''}} · within ${{p.max_drive}} h of Sydney CBD</p>
+      ${{controls(p)}}${{regions(p)}}`;
+  }}).join('');
+}}
+
+document.addEventListener('input', e => {{
+  const el = e.target.closest('[data-p]');
+  if (!el) return;
+  const v = el.dataset.k === 'hideOver' ? el.value === 'true' : Number(el.value);
+  state[el.dataset.p][el.dataset.k] = v;
+  render();
+}});
+document.addEventListener('change', e => {{
+  const el = e.target.closest('select[data-p]');
+  if (el) {{
+    state[el.dataset.p][el.dataset.k] =
+      el.dataset.k === 'hideOver' ? el.value === 'true' : Number(el.value);
+    render();
+  }}
+}});
+document.addEventListener('click', e => {{
+  const btn = e.target.closest('[data-reset]');
+  if (!btn) return;
+  const p = DATA.profiles.find(x => x.key === btn.dataset.reset);
+  state[p.key] = {{ budget: p.budget_max, land: p.min_land, beds: 0, hideOver: false }};
+  render();
+}});
+
+render();
+</script>
+</body></html>
+"""
+
+
+def build() -> str:
+    cfg = load_config()
+    profiles = []
+
+    for key in cfg["profiles"]:
+        p = profile_config(cfg, key)
+        budget = p["budget_max_aud"]
+        land = p["min_land_size_m2"]
+        acreage = key == "lifestyle_acreage"
+
+        regions = []
+        for region in p.get("target_regions", []):
+            hours, source = region_drive_hours(region, cfg)
+            regions.append(
+                {"name": region, "hours": hours, "estimated": source == "estimated"}
+            )
+
+        profiles.append({
+            "key": key,
+            "label": p.get("label", key.replace("_", " ").title()),
+            "acreage": acreage,
+            "budget_max": budget,
+            "min_land": land,
+            "max_drive": p["max_drive_hours_from_sydney_cbd"],
+            # Slider ranges bracket the saved value so it is always adjustable in
+            # both directions, without offering silly extremes.
+            "budget_floor": max(200_000, int(budget * 0.5 // 25_000) * 25_000),
+            "budget_ceiling": int(budget * 1.75 // 25_000) * 25_000,
+            "land_floor": 200 if not acreage else 1_000,
+            "land_ceiling": max(2_000, land * 5),
+            "land_step": 50 if not acreage else 1_000,
+            "regions": regions,
+        })
+
+    return PAGE.format(
+        css=CSS,
+        built=datetime.now(timezone.utc).strftime("%d %b %Y"),
+        data=json.dumps({"profiles": profiles}, ensure_ascii=False).replace("</", "<\\/"),
+    )
+
+
 def main() -> int:
-    out = build()
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    (DOCS_DIR / "search.html").write_text(out, encoding="utf-8")
+    (DOCS_DIR / "search.html").write_text(build(), encoding="utf-8")
     log.info("wrote %s", DOCS_DIR / "search.html")
     return 0
 

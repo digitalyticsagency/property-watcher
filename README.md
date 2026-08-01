@@ -1,6 +1,6 @@
 # NSW Property Watcher
 
-Weekly automated property search across NSW for **two independent buyer profiles**,
+On-demand property search across NSW for **two independent buyer profiles**,
 published as a static dashboard on GitHub Pages. Runs entirely on GitHub Actions —
 nothing needs to stay on your machine.
 
@@ -17,11 +17,10 @@ into a single combined list.
 
 ## How listings are found
 
-Three sources, merged per profile, each tagged so the dashboard can show provenance.
+Search-based discovery, plus optional Domain API, each tagged so the dashboard can show provenance.
 
 | Path | Source | Verified? |
 |---|---|---|
-| **A** | Saved-search alert emails from realestate.com.au / domain.com.au, read via the Gmail API | ✅ Yes |
 | **C** | Google Custom Search JSON API — discovery across the *wider* NSW property web (allhomes, ratemyagent, regional agency sites), then a polite fetch of each listing page | ⚠️ Only if the page fetch succeeded |
 | **B** | Domain Developer API (optional, off by default) | ✅ Yes |
 
@@ -30,8 +29,7 @@ Three sources, merged per profile, each tagged so the dashboard can show provena
 - **Never scrapes a Google or Bing results page.** Discovery goes through the
   official Custom Search JSON API, which returns structured JSON.
 - **Never scrapes realestate.com.au or domain.com.au on a schedule.** Those
-  portals are reached only via their own alert emails (Path A) or Domain's own
-  API (Path B).
+  portals are reached only via Domain's own developer API (Path B), if enabled.
 - **Never invents listing detail.** When the Path C page fetch fails — robots.txt
   disallows it, a 403, a JS-only shell — the listing is kept with just its search
   title/snippet/URL and badged **⚠ UNVERIFIED — open link to confirm** on the
@@ -55,6 +53,19 @@ This is automated reasoning, **not planning advice**. Zone codes alone don't
 settle it: the LEP for the specific lot can impose its own minimum lot size, and
 heritage/flood/bushfire/sewer overlays can defeat an otherwise-permissible
 proposal. Always confirm with the council and the NSW Planning Portal.
+
+---
+
+## Quick search — works with no setup at all
+
+`docs/search.html` turns your criteria into pre-filtered links for every region,
+and lets you retune them in the browser: price, minimum block size, bedrooms, and
+whether to hide regions past your drive-time limit. Links rebuild as you move the
+controls; nothing is saved and nothing re-runs, so trying a bigger budget costs
+nothing. Drive times are measured once at build time via OSRM.
+
+This needs no API key and no workflow run — it is the fastest way to actually
+look at listings.
 
 ---
 
@@ -102,27 +113,7 @@ Until you've filled it in, that command **exits 1 and lists every value still
 missing** — that's the guard doing its job, not a broken setup. You want it to
 print `config OK`.
 
-### 2. Gmail saved-search alerts (Path A)
-
-1. On realestate.com.au and domain.com.au, create a saved search per profile and
-   turn on **instant or daily email alerts**.
-2. In Gmail, create a label per profile and a filter routing those alert emails
-   into it. Defaults expected by `config.yaml`:
-   - `property/lifestyle-acreage`
-   - `property/granny-flat`
-3. Google Cloud Console → new project → enable the **Gmail API** → OAuth consent
-   screen (External, add yourself as a Test user) → Credentials → OAuth client ID
-   → **Desktop app** → download the JSON.
-4. Run the one-time local consent flow (this never runs in CI):
-
-```bash
-python src/auth/gmail_oauth_setup.py --client-secret ~/Downloads/client_secret.json
-```
-
-It prints `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN`.
-Only the refresh token is stored; the Action never does interactive auth.
-
-### 3. Google Custom Search (Path C)
+### 2. Google Custom Search (Path C)
 
 1. **Programmable Search Engine** → <https://programmablesearchengine.google.com/>
    → Add. Under *Sites to search*, add each domain from `search_api.sites` in
@@ -133,15 +124,15 @@ Only the refresh token is stored; the Action never does interactive auth.
    → *Get a Key* → copy → `GOOGLE_SEARCH_API_KEY`.
 
 Free tier is **100 queries/day**. `search_api.max_queries_per_profile` is set to
-8, so a weekly run uses ~16 queries — comfortably inside the free tier.
+24, so a run uses ~48 queries — comfortably inside the free tier.
 
-### 4. Anthropic API key
+### 3. Anthropic API key
 
 <https://console.anthropic.com/> → API keys → `ANTHROPIC_API_KEY`.
 The model is set in `config.yaml` (`claude-opus-5` by default) and is used only
 for scoring, tagging and writing commentary.
 
-### 5. Domain API (optional)
+### 4. Domain API (optional)
 
 Only if you enable `path_b_domain_api` in `data_sources`. Register at
 <https://developer.domain.com.au/> → `DOMAIN_API_KEY`.
@@ -157,9 +148,6 @@ Only if you enable `path_b_domain_api` in `data_sources`. Register at
 | `ANTHROPIC_API_KEY` | ✅ Yes | `rank_and_filter.py` |
 | `GOOGLE_SEARCH_API_KEY` | ✅ Yes | `fetch_search_api.py` |
 | `GOOGLE_SEARCH_ENGINE_ID` | ✅ Yes | `fetch_search_api.py` |
-| `GMAIL_CLIENT_ID` | ✅ Yes | `fetch_email_alerts.py` |
-| `GMAIL_CLIENT_SECRET` | ✅ Yes | `fetch_email_alerts.py` |
-| `GMAIL_REFRESH_TOKEN` | ✅ Yes | `fetch_email_alerts.py` |
 | `DOMAIN_API_KEY` | Optional | `fetch_domain_api.py` (only if Path B enabled) |
 
 No key, token, or secret is ever written to source or committed. `.gitignore`
@@ -190,18 +178,19 @@ Then check the published dashboard for all of:
 
 - [ ] Both profiles appear, with separate listings and separate scores
 - [ ] All five tabs render for each profile
-- [ ] Listings show "via email alert" vs "via web search"
 - [ ] Search-discovered listings that couldn't be fetched carry the amber
       **⚠ UNVERIFIED** badge and left rule, visually distinct from confirmed ones
 - [ ] Granny-flat cards show confirmed / likely / unclear with reasoning
 
-Only once that looks right should you let the weekly cron take over.
+Only once that looks right should you re-enable the weekly cron (commented out in the workflow).
 
 ---
 
 ## Schedule
 
-`0 20 * * 6` (UTC) — **20:00 Saturday UTC**.
+The weekly cron is **commented out** — runs are on demand via
+**Actions → Weekly refresh → Run workflow**. To re-enable it, uncomment the
+`schedule:` block in the workflow. It was set to `0 20 * * 6` (UTC) — **20:00 Saturday UTC**.
 
 GitHub cron is UTC-only and does not follow daylight saving. Sydney is UTC+10
 (AEST) in winter and UTC+11 (AEDT) from the first Sunday in October to the first
@@ -215,8 +204,8 @@ on the Sydney local hour.
 ## Pipeline
 
 ```
-fetch_email_alerts.py ─┐
-fetch_search_api.py    ├─→ geocode_distance.py ─→ zoning_check.py ─→ rank_and_filter.py ─→ build_dashboard.py
+fetch_search_api.py    ─┐
+                        ├─→ geocode_distance.py ─→ zoning_check.py ─→ rank_and_filter.py ─→ build_dashboard.py
 fetch_domain_api.py   ─┘   (merge + drive time)   (granny flat)      (filters + AI)        (docs/index.html)
 ```
 
@@ -243,10 +232,8 @@ Run every command from the repo root with the venv from step 0 activated
 
 ```bash
 export ANTHROPIC_API_KEY=... GOOGLE_SEARCH_API_KEY=... GOOGLE_SEARCH_ENGINE_ID=...
-export GMAIL_CLIENT_ID=... GMAIL_CLIENT_SECRET=... GMAIL_REFRESH_TOKEN=...
 
 export PYTHONPATH=src
-python src/fetch_email_alerts.py
 python src/fetch_search_api.py
 python src/fetch_domain_api.py
 python src/geocode_distance.py
@@ -264,7 +251,6 @@ open docs/index.html
 |---|---|
 | GitHub Actions (public repo) | Free |
 | GitHub Pages | Free |
-| Google Custom Search JSON API | Free (~16 of 100 daily queries) |
-| Gmail API | Free |
+| Google Custom Search JSON API | Free (~48 of 100 daily queries) |
 | Nominatim geocoding + OSRM routing | Free (results cached in `data/cache/`) |
 | Anthropic API | A few cents per run, scaling with listing count |

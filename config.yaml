@@ -42,22 +42,8 @@ profiles:
     query_keywords: ["granny flat", "secondary dwelling", "dual occupancy", "dual living"]
 
 data_sources:
-  # TEMPORARILY DISABLED — re-enable by uncommenting once the three GMAIL_*
-  # secrets are set (see README step 2). While it's commented out the fetcher
-  # writes empty stages and exits 0 rather than failing the run.
-  # - path_a_email_alerts
   - path_c_search_api
-  # - path_b_domain_api      # optional: uncomment if you obtain a Domain API key
-
-# --- Path A: Gmail saved-search alerts -------------------------------------
-gmail:
-  # Gmail labels you route each portal's saved-search alert emails into.
-  # Create these in Gmail with filters BEFORE the first run.
-  labels:
-    lifestyle_acreage: "property/lifestyle-acreage"
-    house_with_granny_flat: "property/granny-flat"
-  # Only look at alert emails newer than this many days (weekly run => 8 for overlap).
-  lookback_days: 8
+  # - path_b_domain_api    # optional: uncomment if you obtain a Domain API key
 
 # --- Path C: Google Custom Search JSON API ---------------------------------
 search_api:
