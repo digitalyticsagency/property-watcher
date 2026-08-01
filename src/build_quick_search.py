@@ -271,7 +271,12 @@ def build() -> str:
             # both directions, without offering silly extremes.
             "budget_floor": max(200_000, int(budget * 0.5 // 25_000) * 25_000),
             "budget_ceiling": int(budget * 1.75 // 25_000) * 25_000,
-            "land_floor": 200 if not acreage else 1_000,
+            # 450 m² is the floor for a reason: it is roughly the lot size the
+            # complying-development pathway wants for a secondary dwelling, so a
+            # slider that went below it would offer searches where a granny flat
+            # is the hard path. Acreage starts at 1,000 m² for the same reason —
+            # anything smaller isn't the thing that profile is looking for.
+            "land_floor": 450 if not acreage else 1_000,
             "land_ceiling": max(2_000, land * 5),
             "land_step": 50 if not acreage else 1_000,
             "regions": regions,
