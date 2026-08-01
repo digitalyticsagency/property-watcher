@@ -130,7 +130,7 @@ const money = n => '$' + n.toLocaleString('en-AU');
 /* Live filter state, seeded from config.yaml and reset back to it on demand. */
 const state = {{}};
 DATA.profiles.forEach(p => state[p.key] = {{
-  budget: p.budget_max, land: p.min_land, beds: 0, hideOver: false,
+  budget: p.budget_max, land: p.min_land, beds: 0, drive: p.max_drive,
 }});
 
 function reaUrl(p, region, s) {{
@@ -175,11 +175,10 @@ function controls(p) {{
         </select>
       </div>
       <div class="field">
-        <label for="h-${{p.key}}">Areas over your drive limit</label>
-        <select id="h-${{p.key}}" data-p="${{p.key}}" data-k="hideOver">
-          <option value="false" ${{!s.hideOver?'selected':''}}>Show them</option>
-          <option value="true" ${{s.hideOver?'selected':''}}>Hide them</option>
-        </select>
+        <label for="h-${{p.key}}">Furthest you would drive</label>
+        <div class="val">${{s.drive}} h</div>
+        <input id="h-${{p.key}}" type="range" data-p="${{p.key}}" data-k="drive"
+          min="0.5" max="6" step="0.5" value="${{s.drive}}">
       </div>
     </div>
     <button class="reset" data-reset="${{p.key}}">Back to my saved criteria</button>
@@ -189,12 +188,11 @@ function controls(p) {{
 function regions(p) {{
   const s = state[p.key];
   return p.regions.map(r => {{
-    const over = r.hours !== null && r.hours > p.max_drive;
-    if (over && s.hideOver) return '';
+    const over = r.hours !== null && r.hours > s.drive;
     const drive = r.hours === null
       ? '<span class="drive unk">drive time unknown</span>'
       : `<span class="drive ${{over ? 'over' : ''}}">${{r.hours}} h to centre${{
-          r.estimated ? ' approx.' : ''}}${{over ? ' — over limit' : ''}}</span>`;
+          r.estimated ? ' approx.' : ''}}${{over ? ' — further than you said' : ''}}</span>`;
     return `<div class="region"><span class="name">${{esc(r.name)}}</span>${{drive}}
       <a href="${{esc(reaUrl(p, r.name, s))}}" target="_blank" rel="noopener noreferrer"
          title="Applies: price + property type${{s.beds ? ' + bedrooms' : ''}}">realestate.com.au</a>
@@ -208,8 +206,11 @@ function render() {{
   document.getElementById('app').innerHTML = DATA.profiles.map(p => {{
     const s = state[p.key];
     return `<h2 class="profile">${{esc(p.label)}}</h2>
-      <p class="crit">Up to ${{money(s.budget)}} · land from ${{s.land.toLocaleString('en-AU')}} m²
-        ${{s.beds ? ' · ' + s.beds + '+ bedrooms' : ''}} · within ${{p.max_drive}} h of Sydney CBD</p>
+      <p class="crit">Showing: up to ${{money(s.budget)}} · land from ${{s.land.toLocaleString('en-AU')}} m²
+        ${{s.beds ? ' · ' + s.beds + '+ bedrooms' : ''}} · within ${{s.drive}} h of Sydney CBD
+        <button class="openall" data-openall="${{p.key}}">Open all ${{
+          p.regions.filter(r => r.hours === null || r.hours <= s.drive).length
+        }} searches</button></p>
       ${{controls(p)}}${{regions(p)}}`;
   }}).join('');
 }}
@@ -217,23 +218,31 @@ function render() {{
 document.addEventListener('input', e => {{
   const el = e.target.closest('[data-p]');
   if (!el) return;
-  const v = el.dataset.k === 'hideOver' ? el.value === 'true' : Number(el.value);
-  state[el.dataset.p][el.dataset.k] = v;
+  state[el.dataset.p][el.dataset.k] = Number(el.value);
   render();
 }});
 document.addEventListener('change', e => {{
   const el = e.target.closest('select[data-p]');
-  if (el) {{
-    state[el.dataset.p][el.dataset.k] =
-      el.dataset.k === 'hideOver' ? el.value === 'true' : Number(el.value);
-    render();
-  }}
+  if (el) {{ state[el.dataset.p][el.dataset.k] = Number(el.value); render(); }}
+}});
+
+/* Opens one tab per region on the portal that carries the most filters.
+   Browsers block bulk window.open unless it is inside a real click handler,
+   which this is; some still cap it, hence the note in the button's title. */
+document.addEventListener('click', e => {{
+  const btn = e.target.closest('[data-openall]');
+  if (!btn) return;
+  const p = DATA.profiles.find(x => x.key === btn.dataset.openall);
+  const s = state[p.key];
+  p.regions
+    .filter(r => r.hours === null || r.hours <= s.drive)
+    .forEach(r => window.open(domainUrl(p, r.name, s), '_blank', 'noopener'));
 }});
 document.addEventListener('click', e => {{
   const btn = e.target.closest('[data-reset]');
   if (!btn) return;
   const p = DATA.profiles.find(x => x.key === btn.dataset.reset);
-  state[p.key] = {{ budget: p.budget_max, land: p.min_land, beds: 0, hideOver: false }};
+  state[p.key] = {{ budget: p.budget_max, land: p.min_land, beds: 0, drive: p.max_drive }};
   render();
 }});
 

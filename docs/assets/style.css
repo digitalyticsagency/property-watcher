@@ -320,3 +320,7 @@ footer.site {
 .region .drive.ok { color: var(--ink-faint); }
 .region .drive.over { color: var(--warn); font-weight: 600; }
 .region .drive.unk { color: var(--ink-faint); font-style: italic; }
+.openall{font:inherit;font-size:.82rem;margin-left:10px;padding:5px 13px;cursor:pointer;
+  border:1px solid var(--accent);border-radius:999px;background:var(--accent);color:var(--bg);
+  font-weight:600}
+.openall:hover{filter:brightness(1.1)}
