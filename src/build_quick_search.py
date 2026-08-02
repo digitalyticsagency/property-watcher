@@ -134,8 +134,9 @@ PAGE = """<!doctype html>
 <div class="note"><strong>No setup, no waiting.</strong> Change anything below and every
 link rebuilds instantly — nothing is saved, nothing re-runs, so you can try a bigger budget
 or a smaller block and see what it opens up. Domain links carry price, land size and
-property type. realestate.com.au's land-size URL format is undocumented and could not be
-verified, so those links carry price and type only. Drive times are measured to the centre
+property type, using place slugs taken from Google's index so they resolve. realestate.com.au
+is reached through a scoped search rather than a direct link — its URL format cannot be
+verified from here, and guessing it produced broken links. Drive times are measured to the centre
 of each region, so a large area can read as over your limit while its near edge is well
 inside it.</div>
 
@@ -181,18 +182,34 @@ function keywordSearchUrl(p, s) {{
   return 'https://www.google.com/search?q=' + encodeURIComponent(q);
 }}
 
-function reaUrl(p, region, s) {{
-  const type = p.acreage ? 'property-acreage+semi-rural' : 'property-house';
-  const beds = s.beds ? `-with-${{s.beds}}-bedrooms` : '';
-  return `https://www.realestate.com.au/buy/${{type}}${{beds}}-between-0-${{s.budget}}`
-       + `-in-${{slug(region)}},+nsw/list-1`;
+/* Domain, built from a slug taken out of Google's index. Property type is a
+   PATH segment on Domain, not a query parameter — /sale/<place>/house/ — which
+   is what the earlier version got wrong along with the missing postcode. */
+function domainUrl(p, r, s) {{
+  if (!r.slug) return null;
+  const type = p.acreage ? 'acreage-semi-rural' : 'house';
+  const beds = s.beds ? `&bedrooms=${{s.beds}}-any` : '';
+  return `https://www.domain.com.au/sale/${{r.slug}}/${{type}}/`
+       + `?price=0-${{s.budget}}&landsize=${{s.land}}-any&landsizeunit=m2${{beds}}`
+       + `&excludeunderoffer=1`;
 }}
 
-function domainUrl(p, region, s) {{
-  const type = p.acreage ? 'acreage-semi-rural,rural' : 'house,duplex,semi-detached';
-  const beds = s.beds ? `&bedrooms=${{s.beds}}-any` : '';
-  return `https://www.domain.com.au/sale/${{slug(region)}}-nsw/?price=0-${{s.budget}}`
-       + `&landsize=${{s.land}}-any&landsizeunit=m2&ptype=${{type}}${{beds}}&excludeunderoffer=1`;
+/* allhomes publishes suburb pages only, on the same slug shape. */
+function allhomesUrl(p, r, s) {{
+  if (!r.slug || !r.is_suburb) return null;
+  return `https://www.allhomes.com.au/sale/${{r.slug}}/`;
+}}
+
+/* realestate.com.au is deliberately NOT linked directly. Its URL grammar is
+   undocumented, it answers 429 to curl, it is blocked in the browser here, and
+   it is excluded from the search index this project can reach — so there is no
+   way to confirm a URL before shipping it. Guessing produced the 404s. A
+   site-scoped search always resolves and lands on the same listings. */
+function reaSearchUrl(p, r, s) {{
+  const words = terms(s).map(t => `"${{t}}"`).join(' ');
+  const q = `${{p.acreage ? 'acreage' : '"granny flat" OR house'}} "${{r.name}}" NSW `
+          + `"for sale" ${{words}} site:realestate.com.au`;
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q);
 }}
 
 function controls(p) {{
@@ -258,12 +275,18 @@ function regions(p) {{
       ? '<span class="drive unk">drive time unknown</span>'
       : `<span class="drive ${{over ? 'over' : ''}}">${{r.hours}} h to centre${{
           r.estimated ? ' approx.' : ''}}${{over ? ' — further than you said' : ''}}</span>`;
-    return `<div class="region"><span class="name">${{esc(r.name)}}</span>${{drive}}
-      <a href="${{esc(reaUrl(p, r.name, s))}}" target="_blank" rel="noopener noreferrer"
-         title="Applies: price + property type${{s.beds ? ' + bedrooms' : ''}}">realestate.com.au</a>
-      <a href="${{esc(domainUrl(p, r.name, s))}}" target="_blank" rel="noopener noreferrer"
-         title="Applies: price + property type + land size${{s.beds ? ' + bedrooms' : ''}}">domain.com.au</a>
-    </div>`;
+
+    const links = [];
+    const dom = domainUrl(p, r, s);
+    if (dom) links.push(`<a href="${{esc(dom)}}" target="_blank" rel="noopener noreferrer"
+      title="Domain — price, property type, land size${{s.beds ? ', bedrooms' : ''}}">domain.com.au</a>`);
+    const ah = allhomesUrl(p, r, s);
+    if (ah) links.push(`<a href="${{esc(ah)}}" target="_blank" rel="noopener noreferrer"
+      title="allhomes — suburb listings, set filters on their page">allhomes</a>`);
+    links.push(`<a href="${{esc(reaSearchUrl(p, r, s))}}" target="_blank" rel="noopener noreferrer"
+      class="viasearch" title="Searches realestate.com.au via Google — their link format cannot be verified, so a direct link risks a 404">realestate.com.au ↗</a>`);
+
+    return `<div class="region"><span class="name">${{esc(r.name)}}</span>${{drive}}${{links.join('')}}</div>`;
   }}).join('');
 }}
 
@@ -274,7 +297,7 @@ function render() {{
       <p class="crit">Showing: up to ${{money(s.budget)}} · land from ${{s.land.toLocaleString('en-AU')}} m²
         ${{s.beds ? ' · ' + s.beds + '+ bedrooms' : ''}} · within ${{s.drive}} h of Sydney CBD
         <button class="openall" data-openall="${{p.key}}">Open all ${{
-          p.regions.filter(r => r.hours === null || r.hours <= s.drive).length
+          p.regions.filter(r => (r.hours === null || r.hours <= s.drive) && domainUrl(p, r, s)).length
         }} searches</button></p>
       ${{controls(p)}}${{regions(p)}}`;
   }}).join('');
@@ -325,8 +348,8 @@ document.addEventListener('click', e => {{
   const p = DATA.profiles.find(x => x.key === btn.dataset.openall);
   const s = state[p.key];
   p.regions
-    .filter(r => r.hours === null || r.hours <= s.drive)
-    .forEach(r => window.open(domainUrl(p, r.name, s), '_blank', 'noopener'));
+    .filter(r => (r.hours === null || r.hours <= s.drive) && domainUrl(p, r, s))
+    .forEach(r => window.open(domainUrl(p, r, s), '_blank', 'noopener'));
 }});
 document.addEventListener('click', e => {{
   const btn = e.target.closest('[data-reset]');
@@ -382,6 +405,15 @@ def build() -> str:
             "regions": regions,
             "features": FEATURES.get(key, []),
         })
+
+    slugs = cfg.get("portal_slugs") or {}
+    for prof in profiles:
+        for r in prof["regions"]:
+            slug = slugs.get(r["name"], "")
+            r["slug"] = slug
+            # A postcode in the slug means it is a suburb, which is the only
+            # level allhomes publishes a page for.
+            r["is_suburb"] = bool(slug) and slug.rsplit("-", 1)[-1].isdigit()
 
     return PAGE.format(
         css=CSS,

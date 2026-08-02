@@ -45,6 +45,34 @@ data_sources:
   - path_c_search_api
   # - path_b_domain_api    # optional: uncomment if you obtain a Domain API key
 
+# --- Portal URL slugs ------------------------------------------------------
+# Domain and allhomes need their OWN slug for a place, which is not the region
+# name lower-cased with hyphens: suburbs require a postcode, and Domain's region
+# names differ from everyday ones ("Hills District" is `hills-nsw`, "Blue
+# Mountains" is `blue-mountains-and-surrounds-nsw`).
+#
+# Every slug below was taken from a URL that appears in Google's index, i.e. a
+# page that demonstrably exists. Do NOT invent entries: the portals answer 403
+# to any automated request, so a wrong slug cannot be detected by fetching it —
+# it just 404s in the user's browser. A region with no entry here falls back to
+# a search link instead of a direct one.
+portal_slugs:
+  Shoalhaven: shoalhaven-nsw
+  Blue Mountains: blue-mountains-and-surrounds-nsw
+  Southern Highlands: southern-highlands-nsw
+  Hunter Valley: hunter-valley-lower-nsw
+  Hills District: hills-nsw
+  Wilton: wilton-nsw-2571
+  Campbelltown: campbelltown-nsw-2560
+  Picton: picton-nsw-2571
+  Penrith: penrith-nsw-2750
+  Blacktown: blacktown-nsw-2148
+  Tahmoor: tahmoor-nsw-2573
+
+# Slugs that include a postcode are suburbs; allhomes uses the same form for
+# those, but has no page for the region-level entries.
+suburb_slugs_have_postcode: true
+
 # --- Path C: Google Custom Search JSON API ---------------------------------
 search_api:
   provider: google_cse            # google_cse (chosen) — bing adapter also present
